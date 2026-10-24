@@ -6,7 +6,7 @@ MealMind Intelligent Meal Planning and Kitchen Management System for EECS 3311 (
 
 ## Stages
 - **Stage 1 (Design)** - [`stage1/Stage1_Design_Report.md`](Stage1/Stage1_Design_Report.md)
-- **Stage 2 (Implementation)** - see [Stage 2: Setup and Configuration](#stage-2-setup-and-configuration)
+- **Stage 2 (Implementation)** - [`Stage2/Stage2_Implementation_Report.md`](Stage2/Stage2_Implementation_Report.md); setup in [Stage 2: Setup and Configuration](#stage-2-setup-and-configuration)
 - **Stage 3 (Testing)** -
 
 ## Stage 1 Deliverables
