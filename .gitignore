@@ -10,6 +10,7 @@ Thumbs.db
 # IDEs and Editors
 .idea/
 .vscode/
+*.iml
 *.swp
 *.swo
 
@@ -18,3 +19,9 @@ target/
 build/
 out/
 *.class
+
+# Local configuration & Secrets
+.env
+.env.*
+!.env.example
+config.local.json
