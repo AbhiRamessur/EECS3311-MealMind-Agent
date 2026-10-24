@@ -1,0 +1,80 @@
+#!/bin/sh
+# MealMind pre-commit secret scan.
+#
+# Blocks the commit if it stages a local secrets file, or adds a line that looks like an API key.
+# It reports the file and the rule that matched, but never prints the matched value.
+# Install with: sh scripts/install-hooks.sh
+
+KEY_PATTERN='sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}'
+HOOK_FILE='scripts/hooks/pre-commit'
+blocked=0
+
+block() {
+    echo "pre-commit: BLOCKED $1 -- $2" >&2
+    blocked=1
+}
+
+# A value assigned to LLM_API_KEY is allowed if it is clearly not a real key.
+is_placeholder() {
+    case "$1" in
+        YOUR_*|test-*|fake-*|\<*\>) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Files that legitimately contain example LLM_API_KEY assignments.
+skip_assignment_check() {
+    case "$1" in
+        src/test/*|*.md|.env.example|scripts/hooks/*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+staged=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR)
+
+while IFS= read -r path; do
+    [ -z "$path" ] && continue
+
+    # (a) Local secret/config files, checked for every path.
+    case "$(basename "$path")" in
+        .env.example) ;;
+        .env|.env.*|config.local.json)
+            block "$path" "local secret/config files must never be committed"
+            continue
+            ;;
+    esac
+
+    # The hook's own patterns must not trigger checks (b) and (c).
+    [ "$path" = "$HOOK_FILE" ] && continue
+
+    added=$(git diff --cached -U0 --no-color -- "$path" | grep '^+' | grep -v '^+++ ' | cut -c2-)
+    [ -z "$added" ] && continue
+
+    # (b) Common API key formats.
+    if printf '%s\n' "$added" | grep -Eq "$KEY_PATTERN"; then
+        block "$path" "an added line looks like an API key (sk-... or AKIA...)"
+    fi
+
+    # (c) LLM_API_KEY assigned a non-placeholder value.
+    skip_assignment_check "$path" && continue
+    values=$(printf '%s\n' "$added" | grep 'LLM_API_KEY=' | sed 's/.*LLM_API_KEY=//')
+    while IFS= read -r value; do
+        value=$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+            -e 's/^["'\'']//' -e 's/["'\'']$//')
+        if [ -n "$value" ] && ! is_placeholder "$value"; then
+            block "$path" "LLM_API_KEY is assigned a value that is not a placeholder"
+            break
+        fi
+    done <<EOF
+$values
+EOF
+done <<EOF
+$staged
+EOF
+
+if [ "$blocked" -ne 0 ]; then
+    echo "pre-commit: commit aborted. Unstage the file (git restore --staged <file>) and keep" >&2
+    echo "real keys only in your local, gitignored .env file." >&2
+    exit 1
+fi
+exit 0

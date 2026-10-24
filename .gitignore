@@ -25,3 +25,6 @@ out/
 .env.*
 !.env.example
 config.local.json
+
+# Logs
+*.log
