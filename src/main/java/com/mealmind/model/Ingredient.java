@@ -1,7 +1,6 @@
 package com.mealmind.model;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -72,7 +71,7 @@ public final class Ingredient implements MealComponent {
      * @return the normalized name
      */
     public String normalizedName() {
-        return name.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+        return Names.normalize(name);
     }
 
     /**

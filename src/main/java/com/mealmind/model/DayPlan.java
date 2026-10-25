@@ -16,8 +16,11 @@ import java.util.Set;
  *
  * <p>Totals are the sums over the filled slots; an empty day has all totals equal to zero.
  * Meals and slots are always visited in {@link MealType} order.
+ *
+ * <p>It is also a ConcreteSubject in the Observer pattern: observers are notified after every
+ * {@link #setMeal} and after every {@link #clearMeal} that actually removes a meal.
  */
-public final class DayPlan implements MealComponent {
+public final class DayPlan extends ObservableSubject implements MealComponent {
 
     /** The highest allowed day number, and the longest allowed plan. */
     public static final int MAX_DAYS = 7;
@@ -59,7 +62,7 @@ public final class DayPlan implements MealComponent {
     }
 
     /**
-     * Puts a meal into a slot, replacing any meal already there.
+     * Puts a meal into a slot, replacing any meal already there, then notifies observers.
      *
      * @param type the slot
      * @param meal the meal to put there
@@ -69,18 +72,24 @@ public final class DayPlan implements MealComponent {
     public Optional<Meal> setMeal(MealType type, Meal meal) {
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(meal, "meal");
-        return Optional.ofNullable(meals.put(type, meal));
+        Optional<Meal> previous = Optional.ofNullable(meals.put(type, meal));
+        notifyObservers(getName() + " " + type + " set to " + meal.getName());
+        return previous;
     }
 
     /**
-     * Empties a slot.
+     * Empties a slot. Observers are notified only if a meal was actually removed.
      *
      * @param type the slot
      * @return the meal that was removed, or empty if the slot was already empty
      * @throws NullPointerException if {@code type} is null
      */
     public Optional<Meal> clearMeal(MealType type) {
-        return Optional.ofNullable(meals.remove(Objects.requireNonNull(type, "type")));
+        Optional<Meal> removed = Optional.ofNullable(meals.remove(Objects.requireNonNull(type, "type")));
+        if (removed.isPresent()) {
+            notifyObservers(getName() + " " + type + " cleared");
+        }
+        return removed;
     }
 
     /**

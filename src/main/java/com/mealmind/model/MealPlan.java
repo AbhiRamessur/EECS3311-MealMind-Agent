@@ -11,8 +11,13 @@ import java.util.Optional;
  *
  * <p>Totals are the sums over all days. The plan is mutable: meals are set and cleared through
  * this class or the individual days.
+ *
+ * <p>It is also a ConcreteSubject in the Observer pattern. Because callers can change a day
+ * directly (through {@link #getDay(int)}), the plan observes each of its own days and re-notifies
+ * its observers whenever one changes. {@link #setMeal} and {@link #clearMeal} simply delegate to the
+ * day, so each change produces exactly one plan notification.
  */
-public final class MealPlan implements MealComponent {
+public final class MealPlan extends ObservableSubject implements MealComponent {
 
     /**
      * One meal slot in a plan, such as day 2's dinner.
@@ -29,6 +34,14 @@ public final class MealPlan implements MealComponent {
          */
         public Slot {
             Objects.requireNonNull(type, "type");
+        }
+    }
+
+    /** Forwards each day's change notifications to the plan's own observers. */
+    private final class DayChangeForwarder implements ModelObserver {
+        @Override
+        public void onStateChanged(ChangeEvent event) {
+            notifyObservers(event.description());
         }
     }
 
@@ -51,9 +64,12 @@ public final class MealPlan implements MealComponent {
                     + ", got " + numberOfDays);
         }
         this.name = name.trim();
+        DayChangeForwarder forwarder = new DayChangeForwarder();
         List<DayPlan> created = new ArrayList<>();
         for (int day = 1; day <= numberOfDays; day++) {
-            created.add(new DayPlan(day));
+            DayPlan dayPlan = new DayPlan(day);
+            dayPlan.addObserver(forwarder);
+            created.add(dayPlan);
         }
         this.days = List.copyOf(created);
     }
