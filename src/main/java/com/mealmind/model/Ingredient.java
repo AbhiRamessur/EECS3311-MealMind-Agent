@@ -1,5 +1,6 @@
 package com.mealmind.model;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -11,8 +12,10 @@ import java.util.Objects;
  * 200 g provides 260 kcal. Because of this, {@link #withQuantity(double)} can scale every total by
  * the same factor, and summing ingredients (later, through the Composite pattern) gives correct
  * totals for a recipe or meal plan.
+ *
+ * <p>In the Composite pattern this is the Leaf of {@link MealComponent}.
  */
-public final class Ingredient {
+public final class Ingredient implements MealComponent {
 
     private final String name;
     private final double quantity;
@@ -113,6 +116,7 @@ public final class Ingredient {
      *
      * @return the name
      */
+    @Override
     public String getName() {
         return name;
     }
@@ -140,6 +144,7 @@ public final class Ingredient {
      *
      * @return the calories
      */
+    @Override
     public double getCalories() {
         return calories;
     }
@@ -149,6 +154,7 @@ public final class Ingredient {
      *
      * @return the protein in grams
      */
+    @Override
     public double getProteinG() {
         return proteinG;
     }
@@ -158,6 +164,7 @@ public final class Ingredient {
      *
      * @return the carbohydrates in grams
      */
+    @Override
     public double getCarbsG() {
         return carbsG;
     }
@@ -167,6 +174,7 @@ public final class Ingredient {
      *
      * @return the fat in grams
      */
+    @Override
     public double getFatG() {
         return fatG;
     }
@@ -176,8 +184,19 @@ public final class Ingredient {
      *
      * @return the cost
      */
+    @Override
     public double getCost() {
         return cost;
+    }
+
+    /**
+     * Returns this ingredient as the only leaf beneath itself.
+     *
+     * @return a one-element list containing this ingredient
+     */
+    @Override
+    public List<Ingredient> getIngredients() {
+        return List.of(this);
     }
 
     @Override
