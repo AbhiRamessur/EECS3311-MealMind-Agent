@@ -62,7 +62,7 @@ class ShoppingListGeneratorObserverTest {
 
         assertEquals(1, events.size());
         assertSame(generator, events.get(0).source());
-        assertEquals("Shopping list updated (1 items)", events.get(0).description());
+        assertEquals("Shopping list updated (1 item)", events.get(0).description());
         assertEquals(50, generator.getCurrent().getItems().get(0).getQuantity(), 1e-9);
     }
 
@@ -71,6 +71,7 @@ class ShoppingListGeneratorObserverTest {
         plan.setMeal(2, MealType.LUNCH, chickenMeal(MealType.LUNCH));
 
         assertEquals(1, events.size());
+        assertEquals("Shopping list updated (2 items)", events.get(0).description());
         assertEquals(2, generator.getCurrent().size());
     }
 

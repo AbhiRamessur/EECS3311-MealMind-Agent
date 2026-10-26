@@ -19,10 +19,12 @@
 
         <javafx.version>21.0.5</javafx.version>
         <junit.version>5.11.3</junit.version>
+        <jackson.version>2.18.2</jackson.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
         <javafx-maven-plugin.version>0.0.8</javafx-maven-plugin.version>
+        <exec-maven-plugin.version>3.5.0</exec-maven-plugin.version>
 
         <!-- Entry point for javafx:run; switched to the JavaFX Application class when the GUI is added. -->
         <mealmind.mainClass>com.mealmind.Main</mealmind.mainClass>
@@ -45,6 +47,12 @@
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
 
         <dependency>
@@ -77,6 +85,16 @@
                 <version>${javafx-maven-plugin.version}</version>
                 <configuration>
                     <mainClass>${mealmind.mainClass}</mainClass>
+                </configuration>
+            </plugin>
+
+            <!-- `mvn -q exec:java` starts the interactive CLI. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${exec-maven-plugin.version}</version>
+                <configuration>
+                    <mainClass>com.mealmind.Main</mainClass>
                 </configuration>
             </plugin>
         </plugins>

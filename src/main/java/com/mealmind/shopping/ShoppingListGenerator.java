@@ -176,7 +176,8 @@ public final class ShoppingListGenerator extends ObservableSubject implements Mo
     @Override
     public void onStateChanged(ChangeEvent event) {
         current = generate();
-        notifyObservers("Shopping list updated (" + current.size() + " items)");
+        int size = current.size();
+        notifyObservers("Shopping list updated (" + size + (size == 1 ? " item)" : " items)"));
     }
 
     /** Unsubscribes from the plan and the pantry; later changes no longer update the cache. Safe to call twice. */

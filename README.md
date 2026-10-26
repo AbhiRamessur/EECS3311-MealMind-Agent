@@ -66,8 +66,63 @@ sh scripts/install-hooks.sh
 This sets `core.hooksPath` to `scripts/hooks`. The hook blocks any commit that stages `.env`, `.env.*` (except `.env.example`) or `config.local.json`, or adds something that looks like an API key.
 
 ### Running the application
-* CLI: _added in a later commit_
+* CLI: see [Running the CLI](#running-the-cli) below.
 * GUI: _added in a later commit_
+
+### Running the CLI
+Start the interactive command line from the project root:
+```bash
+mvn -q exec:java
+```
+Your pantry is saved automatically to `data/pantry.json` (gitignored). To keep data somewhere else, set `MEALMIND_DATA_DIR`:
+```bash
+MEALMIND_DATA_DIR=/path/to/my-data mvn -q exec:java
+```
+The meal plan and any recipe scaling are kept in memory for the session only; ten sample recipes (R101–R110) are always available. The sample recipes are demo data with approximate nutrition and prices.
+
+| Command | Example |
+|---|---|
+| `pantry add "<name>" <qty> <unit> [expiry yyyy-MM-dd]` | `pantry add "Chicken Breast" 500 g 2026-11-10` |
+| `pantry list` | `pantry list` |
+| `pantry remove "<name>"` | `pantry remove "Chicken Breast"` |
+| `recipe list` | `recipe list` |
+| `recipe show <id>` | `recipe show R101` |
+| `recipe scale --id <id> --servings <n>` | `recipe scale --id R101 --servings 4` |
+| `plan new --days <n>` | `plan new --days 5` |
+| `plan set <day> <slot> <recipeId> [--servings <n>]` | `plan set 1 dinner R101 --servings 3` |
+| `plan clear <day> <slot>` | `plan clear 1 dinner` |
+| `plan show` | `plan show` |
+| `shopping list` | `shopping list` |
+| `shopping export --format txt [--file <path>]` | `shopping export --format txt --file shopping.txt` |
+| `undo` / `redo` | `undo` |
+| `help` | `help` |
+| `exit` / `quit` | `exit` |
+
+Units: `g`, `kg`, `ml`, `l`, `tsp`, `tbsp`, `cup`, `pc` (full names such as `grams` also work). Slots: `breakfast`, `lunch`, `dinner`, `snack`.
+
+Example session:
+```
+mealmind> pantry add Rice 500 g
+Added Rice. Pantry now has 500 g.
+mealmind> pantry add "Chicken breast" 200 g 2026-11-02
+Added Chicken breast. Pantry now has 200 g.
+mealmind> recipe scale --id R101 --servings 4
+Scaled Chicken Stir-Fry to 4 servings (per-serving values unchanged).
+mealmind> plan set 1 dinner R101
+Day 1 Dinner: Chicken Stir-Fry (4 servings)
+mealmind> shopping list
+MealMind Shopping List
+...
+Meat & Seafood:
+- 400 g Chicken breast (~$6.00)
+...
+mealmind> undo
+Undone: Replace Day 1 DINNER with Chicken Stir-Fry
+mealmind> exit
+```
+(Lines starting with `[update]` are printed whenever the shopping list changes.)
+
+The AI agent commands (recipe generation, plan generation, natural-language edits) arrive in a later commit, and the JavaFX GUI after that.
 
 ### Security
 * Never commit `.env`. Run `git status` before committing.

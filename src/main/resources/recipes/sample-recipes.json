@@ -1,0 +1,204 @@
+{
+  "recipes": [
+    {
+      "id": "R101",
+      "name": "Chicken Stir-Fry",
+      "servings": 2,
+      "prepMinutes": 25,
+      "instructions": [
+        "Cook the rice according to the package directions.",
+        "Slice the chicken into thin strips and stir-fry in hot oil until cooked through.",
+        "Add the broccoli, bell pepper and garlic and stir-fry for 4 minutes.",
+        "Stir in the soy sauce and serve over the rice."
+      ],
+      "ingredients": [
+        { "name": "Chicken breast", "quantity": 300, "unit": "GRAM", "caloriesTotal": 495, "proteinGTotal": 93, "carbsGTotal": 0, "fatGTotal": 11, "costTotal": 4.50 },
+        { "name": "Broccoli", "quantity": 200, "unit": "GRAM", "caloriesTotal": 68, "proteinGTotal": 5.6, "carbsGTotal": 13.2, "fatGTotal": 0.8, "costTotal": 1.20 },
+        { "name": "Red bell pepper", "quantity": 150, "unit": "GRAM", "caloriesTotal": 46, "proteinGTotal": 1.5, "carbsGTotal": 9, "fatGTotal": 0.5, "costTotal": 1.00 },
+        { "name": "Garlic", "quantity": 10, "unit": "GRAM", "caloriesTotal": 15, "proteinGTotal": 0.6, "carbsGTotal": 3.3, "fatGTotal": 0.1, "costTotal": 0.10 },
+        { "name": "Soy sauce", "quantity": 30, "unit": "MILLILITER", "caloriesTotal": 16, "proteinGTotal": 2.4, "carbsGTotal": 1.5, "fatGTotal": 0, "costTotal": 0.25 },
+        { "name": "Vegetable oil", "quantity": 15, "unit": "MILLILITER", "caloriesTotal": 124, "proteinGTotal": 0, "carbsGTotal": 0, "fatGTotal": 14, "costTotal": 0.10 },
+        { "name": "Basmati rice", "quantity": 180, "unit": "GRAM", "caloriesTotal": 650, "proteinGTotal": 13, "carbsGTotal": 140, "fatGTotal": 1.5, "costTotal": 0.90 }
+      ]
+    },
+    {
+      "id": "R102",
+      "name": "Berry Overnight Oats",
+      "servings": 1,
+      "prepMinutes": 10,
+      "instructions": [
+        "Combine the oats, milk, yogurt, honey and salt in a jar and stir well.",
+        "Cover and refrigerate overnight.",
+        "Top with the blueberries before serving."
+      ],
+      "ingredients": [
+        { "name": "Rolled oats", "quantity": 50, "unit": "GRAM", "caloriesTotal": 190, "proteinGTotal": 6.5, "carbsGTotal": 33, "fatGTotal": 3.5, "costTotal": 0.25 },
+        { "name": "Milk", "quantity": 200, "unit": "MILLILITER", "caloriesTotal": 100, "proteinGTotal": 6.8, "carbsGTotal": 9.6, "fatGTotal": 3.8, "costTotal": 0.30 },
+        { "name": "Greek yogurt", "quantity": 100, "unit": "GRAM", "caloriesTotal": 97, "proteinGTotal": 9, "carbsGTotal": 3.6, "fatGTotal": 5, "costTotal": 0.70 },
+        { "name": "Blueberries", "quantity": 75, "unit": "GRAM", "caloriesTotal": 43, "proteinGTotal": 0.5, "carbsGTotal": 11, "fatGTotal": 0.2, "costTotal": 1.00 },
+        { "name": "Honey", "quantity": 1, "unit": "TABLESPOON", "caloriesTotal": 64, "proteinGTotal": 0.1, "carbsGTotal": 17, "fatGTotal": 0, "costTotal": 0.20 },
+        { "name": "Pinch of salt", "quantity": 0.5, "unit": "GRAM", "caloriesTotal": 0, "proteinGTotal": 0, "carbsGTotal": 0, "fatGTotal": 0, "costTotal": 0.01 }
+      ]
+    },
+    {
+      "id": "R103",
+      "name": "Red Lentil Soup",
+      "servings": 4,
+      "prepMinutes": 40,
+      "instructions": [
+        "Heat the olive oil in a large pot and soften the onion, carrots and garlic for 5 minutes.",
+        "Stir in the cumin and cook for 1 minute.",
+        "Add the lentils and broth and bring to a boil.",
+        "Simmer for 20 minutes until the lentils are soft.",
+        "Blend partially and season with salt to taste."
+      ],
+      "ingredients": [
+        { "name": "Red lentils", "quantity": 250, "unit": "GRAM", "caloriesTotal": 890, "proteinGTotal": 61, "carbsGTotal": 150, "fatGTotal": 3, "costTotal": 1.25 },
+        { "name": "Onion", "quantity": 150, "unit": "GRAM", "caloriesTotal": 60, "proteinGTotal": 1.6, "carbsGTotal": 14, "fatGTotal": 0.2, "costTotal": 0.40 },
+        { "name": "Carrots", "quantity": 150, "unit": "GRAM", "caloriesTotal": 62, "proteinGTotal": 1.4, "carbsGTotal": 14, "fatGTotal": 0.4, "costTotal": 0.35 },
+        { "name": "Garlic", "quantity": 10, "unit": "GRAM", "caloriesTotal": 15, "proteinGTotal": 0.6, "carbsGTotal": 3.3, "fatGTotal": 0.1, "costTotal": 0.10 },
+        { "name": "Vegetable broth", "quantity": 1, "unit": "LITER", "caloriesTotal": 50, "proteinGTotal": 2, "carbsGTotal": 8, "fatGTotal": 1, "costTotal": 2.00 },
+        { "name": "Olive oil", "quantity": 2, "unit": "TABLESPOON", "caloriesTotal": 239, "proteinGTotal": 0, "carbsGTotal": 0, "fatGTotal": 27, "costTotal": 0.30 },
+        { "name": "Ground cumin", "quantity": 1, "unit": "TEASPOON", "caloriesTotal": 8, "proteinGTotal": 0.4, "carbsGTotal": 0.9, "fatGTotal": 0.5, "costTotal": 0.15 },
+        { "name": "Salt, to taste", "quantity": 1, "unit": "TEASPOON", "caloriesTotal": 0, "proteinGTotal": 0, "carbsGTotal": 0, "fatGTotal": 0, "costTotal": 0.01 }
+      ]
+    },
+    {
+      "id": "R104",
+      "name": "Spaghetti Bolognese",
+      "servings": 4,
+      "prepMinutes": 45,
+      "instructions": [
+        "Brown the ground beef in the olive oil, then add the onion and garlic.",
+        "Pour in the tomato sauce and simmer for 20 minutes.",
+        "Meanwhile cook the spaghetti until al dente and drain.",
+        "Toss the spaghetti with the sauce.",
+        "Serve topped with grated parmesan."
+      ],
+      "ingredients": [
+        { "name": "Spaghetti", "quantity": 400, "unit": "GRAM", "caloriesTotal": 1484, "proteinGTotal": 52, "carbsGTotal": 300, "fatGTotal": 6, "costTotal": 1.60 },
+        { "name": "Ground beef", "quantity": 500, "unit": "GRAM", "caloriesTotal": 1075, "proteinGTotal": 86, "carbsGTotal": 0, "fatGTotal": 77, "costTotal": 7.00 },
+        { "name": "Tomato sauce", "quantity": 680, "unit": "MILLILITER", "caloriesTotal": 160, "proteinGTotal": 7, "carbsGTotal": 34, "fatGTotal": 1, "costTotal": 1.50 },
+        { "name": "Onion", "quantity": 150, "unit": "GRAM", "caloriesTotal": 60, "proteinGTotal": 1.6, "carbsGTotal": 14, "fatGTotal": 0.2, "costTotal": 0.40 },
+        { "name": "Garlic", "quantity": 15, "unit": "GRAM", "caloriesTotal": 22, "proteinGTotal": 1, "carbsGTotal": 5, "fatGTotal": 0.1, "costTotal": 0.15 },
+        { "name": "Parmesan cheese", "quantity": 40, "unit": "GRAM", "caloriesTotal": 168, "proteinGTotal": 14, "carbsGTotal": 1.6, "fatGTotal": 11, "costTotal": 1.40 },
+        { "name": "Olive oil", "quantity": 1, "unit": "TABLESPOON", "caloriesTotal": 119, "proteinGTotal": 0, "carbsGTotal": 0, "fatGTotal": 13.5, "costTotal": 0.15 }
+      ]
+    },
+    {
+      "id": "R105",
+      "name": "Black Bean Tacos",
+      "servings": 3,
+      "prepMinutes": 20,
+      "instructions": [
+        "Warm the black beans with the chili powder and a splash of water, then mash lightly.",
+        "Dice the tomatoes, red onion and avocado.",
+        "Warm the tortillas in a dry pan.",
+        "Fill the tortillas with beans and vegetables and finish with lime juice."
+      ],
+      "ingredients": [
+        { "name": "Black beans", "quantity": 400, "unit": "GRAM", "caloriesTotal": 528, "proteinGTotal": 35, "carbsGTotal": 95, "fatGTotal": 2, "costTotal": 1.50 },
+        { "name": "Corn tortillas", "quantity": 6, "unit": "COUNT", "caloriesTotal": 312, "proteinGTotal": 8, "carbsGTotal": 64, "fatGTotal": 4, "costTotal": 1.20 },
+        { "name": "Avocado", "quantity": 1, "unit": "COUNT", "caloriesTotal": 240, "proteinGTotal": 3, "carbsGTotal": 13, "fatGTotal": 22, "costTotal": 1.50 },
+        { "name": "Tomatoes", "quantity": 2, "unit": "COUNT", "caloriesTotal": 44, "proteinGTotal": 2, "carbsGTotal": 9.6, "fatGTotal": 0.4, "costTotal": 0.80 },
+        { "name": "Red onion", "quantity": 75, "unit": "GRAM", "caloriesTotal": 30, "proteinGTotal": 0.8, "carbsGTotal": 7, "fatGTotal": 0.1, "costTotal": 0.20 },
+        { "name": "Lime", "quantity": 1, "unit": "COUNT", "caloriesTotal": 20, "proteinGTotal": 0.5, "carbsGTotal": 7, "fatGTotal": 0.1, "costTotal": 0.40 },
+        { "name": "Chili powder", "quantity": 1, "unit": "TEASPOON", "caloriesTotal": 8, "proteinGTotal": 0.4, "carbsGTotal": 1.4, "fatGTotal": 0.4, "costTotal": 0.10 }
+      ]
+    },
+    {
+      "id": "R106",
+      "name": "Lemon Salmon with Roasted Potatoes",
+      "servings": 2,
+      "prepMinutes": 35,
+      "instructions": [
+        "Heat the oven to 220 C and halve the potatoes.",
+        "Toss the potatoes in half the olive oil and roast for 15 minutes.",
+        "Add the salmon and asparagus to the tray, drizzle with the remaining oil and lemon juice.",
+        "Roast for 12 more minutes and season with black pepper to taste."
+      ],
+      "ingredients": [
+        { "name": "Salmon fillet", "quantity": 300, "unit": "GRAM", "caloriesTotal": 620, "proteinGTotal": 60, "carbsGTotal": 0, "fatGTotal": 40, "costTotal": 9.00 },
+        { "name": "Baby potatoes", "quantity": 400, "unit": "GRAM", "caloriesTotal": 308, "proteinGTotal": 8, "carbsGTotal": 70, "fatGTotal": 0.4, "costTotal": 1.60 },
+        { "name": "Asparagus", "quantity": 200, "unit": "GRAM", "caloriesTotal": 40, "proteinGTotal": 4.4, "carbsGTotal": 7.8, "fatGTotal": 0.2, "costTotal": 2.50 },
+        { "name": "Lemon", "quantity": 1, "unit": "COUNT", "caloriesTotal": 17, "proteinGTotal": 0.6, "carbsGTotal": 5.4, "fatGTotal": 0.2, "costTotal": 0.50 },
+        { "name": "Olive oil", "quantity": 2, "unit": "TABLESPOON", "caloriesTotal": 239, "proteinGTotal": 0, "carbsGTotal": 0, "fatGTotal": 27, "costTotal": 0.30 },
+        { "name": "Black pepper, to taste", "quantity": 1, "unit": "TEASPOON", "caloriesTotal": 6, "proteinGTotal": 0.2, "carbsGTotal": 1.5, "fatGTotal": 0.1, "costTotal": 0.05 }
+      ]
+    },
+    {
+      "id": "R107",
+      "name": "Spinach Mushroom Omelette",
+      "servings": 1,
+      "prepMinutes": 15,
+      "instructions": [
+        "Whisk the eggs with the salt.",
+        "Melt the butter in a pan and cook the mushrooms and spinach for 3 minutes.",
+        "Pour in the eggs and cook gently until almost set.",
+        "Sprinkle with cheddar, fold and serve."
+      ],
+      "ingredients": [
+        { "name": "Eggs", "quantity": 3, "unit": "COUNT", "caloriesTotal": 216, "proteinGTotal": 19, "carbsGTotal": 1.2, "fatGTotal": 15, "costTotal": 0.90 },
+        { "name": "Spinach", "quantity": 30, "unit": "GRAM", "caloriesTotal": 7, "proteinGTotal": 0.9, "carbsGTotal": 1.1, "fatGTotal": 0.1, "costTotal": 0.30 },
+        { "name": "Mushrooms", "quantity": 50, "unit": "GRAM", "caloriesTotal": 11, "proteinGTotal": 1.6, "carbsGTotal": 1.6, "fatGTotal": 0.2, "costTotal": 0.40 },
+        { "name": "Cheddar cheese", "quantity": 30, "unit": "GRAM", "caloriesTotal": 121, "proteinGTotal": 7, "carbsGTotal": 0.4, "fatGTotal": 10, "costTotal": 0.50 },
+        { "name": "Butter", "quantity": 10, "unit": "GRAM", "caloriesTotal": 72, "proteinGTotal": 0.1, "carbsGTotal": 0, "fatGTotal": 8, "costTotal": 0.10 },
+        { "name": "Pinch of salt", "quantity": 0.5, "unit": "GRAM", "caloriesTotal": 0, "proteinGTotal": 0, "carbsGTotal": 0, "fatGTotal": 0, "costTotal": 0.01 }
+      ]
+    },
+    {
+      "id": "R108",
+      "name": "Mediterranean Chickpea Salad",
+      "servings": 2,
+      "prepMinutes": 15,
+      "instructions": [
+        "Rinse and drain the chickpeas.",
+        "Chop the cucumber, cherry tomatoes, red onion and parsley.",
+        "Toss everything with the olive oil and lemon juice and serve."
+      ],
+      "ingredients": [
+        { "name": "Chickpeas", "quantity": 400, "unit": "GRAM", "caloriesTotal": 656, "proteinGTotal": 35, "carbsGTotal": 109, "fatGTotal": 10, "costTotal": 1.40 },
+        { "name": "Cucumber", "quantity": 200, "unit": "GRAM", "caloriesTotal": 30, "proteinGTotal": 1.3, "carbsGTotal": 7.2, "fatGTotal": 0.2, "costTotal": 0.80 },
+        { "name": "Cherry tomatoes", "quantity": 200, "unit": "GRAM", "caloriesTotal": 36, "proteinGTotal": 1.8, "carbsGTotal": 7.8, "fatGTotal": 0.4, "costTotal": 1.50 },
+        { "name": "Red onion", "quantity": 50, "unit": "GRAM", "caloriesTotal": 20, "proteinGTotal": 0.6, "carbsGTotal": 4.7, "fatGTotal": 0.1, "costTotal": 0.15 },
+        { "name": "Fresh parsley", "quantity": 15, "unit": "GRAM", "caloriesTotal": 5, "proteinGTotal": 0.4, "carbsGTotal": 1, "fatGTotal": 0.1, "costTotal": 0.40 },
+        { "name": "Olive oil", "quantity": 2, "unit": "TABLESPOON", "caloriesTotal": 239, "proteinGTotal": 0, "carbsGTotal": 0, "fatGTotal": 27, "costTotal": 0.30 },
+        { "name": "Lemon", "quantity": 1, "unit": "COUNT", "caloriesTotal": 17, "proteinGTotal": 0.6, "carbsGTotal": 5.4, "fatGTotal": 0.2, "costTotal": 0.50 }
+      ]
+    },
+    {
+      "id": "R109",
+      "name": "Peanut Butter Banana Toast",
+      "servings": 1,
+      "prepMinutes": 5,
+      "instructions": [
+        "Toast the bread.",
+        "Spread with peanut butter and top with sliced banana.",
+        "Dust with cinnamon."
+      ],
+      "ingredients": [
+        { "name": "Whole wheat bread", "quantity": 2, "unit": "COUNT", "caloriesTotal": 160, "proteinGTotal": 8, "carbsGTotal": 28, "fatGTotal": 2, "costTotal": 0.40 },
+        { "name": "Peanut butter", "quantity": 2, "unit": "TABLESPOON", "caloriesTotal": 190, "proteinGTotal": 7, "carbsGTotal": 7, "fatGTotal": 16, "costTotal": 0.35 },
+        { "name": "Banana", "quantity": 1, "unit": "COUNT", "caloriesTotal": 105, "proteinGTotal": 1.3, "carbsGTotal": 27, "fatGTotal": 0.4, "costTotal": 0.30 },
+        { "name": "Cinnamon", "quantity": 0.25, "unit": "TEASPOON", "caloriesTotal": 2, "proteinGTotal": 0, "carbsGTotal": 0.5, "fatGTotal": 0, "costTotal": 0.02 }
+      ]
+    },
+    {
+      "id": "R110",
+      "name": "Greek Yogurt Parfait",
+      "servings": 2,
+      "prepMinutes": 5,
+      "instructions": [
+        "Slice the strawberries.",
+        "Layer the yogurt, granola and strawberries in two glasses.",
+        "Drizzle with honey and serve."
+      ],
+      "ingredients": [
+        { "name": "Greek yogurt", "quantity": 400, "unit": "GRAM", "caloriesTotal": 388, "proteinGTotal": 36, "carbsGTotal": 14.4, "fatGTotal": 20, "costTotal": 2.80 },
+        { "name": "Granola", "quantity": 60, "unit": "GRAM", "caloriesTotal": 270, "proteinGTotal": 6, "carbsGTotal": 38, "fatGTotal": 11, "costTotal": 0.90 },
+        { "name": "Strawberries", "quantity": 150, "unit": "GRAM", "caloriesTotal": 48, "proteinGTotal": 1, "carbsGTotal": 11.5, "fatGTotal": 0.5, "costTotal": 1.50 },
+        { "name": "Honey", "quantity": 1, "unit": "TABLESPOON", "caloriesTotal": 64, "proteinGTotal": 0.1, "carbsGTotal": 17, "fatGTotal": 0, "costTotal": 0.20 }
+      ]
+    }
+  ]
+}
