@@ -53,9 +53,19 @@ class AppConfigTest {
         AppConfig config = AppConfig.load(noEnvFile(), Map.of("LLM_PROVIDER", "ollama"));
 
         assertEquals(LlmProvider.OLLAMA, config.getProvider());
-        assertEquals("gpt-4o", config.getModel());
+        assertEquals("llama3", config.getModel());
         assertEquals("http://localhost:11434", config.getOllamaBaseUrl());
         assertEquals(30, config.getTimeoutSeconds());
+    }
+
+    @Test
+    void defaultModelDependsOnProviderAndExplicitModelWins() {
+        assertEquals("gpt-4o", AppConfig.load(noEnvFile(), Map.of("LLM_API_KEY", FAKE_KEY)).getModel());
+        assertEquals("llama3", AppConfig.load(noEnvFile(), Map.of("LLM_PROVIDER", "ollama")).getModel());
+        assertEquals("gpt-4o-mini",
+                AppConfig.load(noEnvFile(), Map.of("LLM_API_KEY", FAKE_KEY, "LLM_MODEL", "gpt-4o-mini")).getModel());
+        assertEquals("deepseek-r1:8b",
+                AppConfig.load(noEnvFile(), Map.of("LLM_PROVIDER", "ollama", "LLM_MODEL", "deepseek-r1:8b")).getModel());
     }
 
     @Test

@@ -145,6 +145,29 @@ The safety check is a conservative **keyword heuristic on ingredient names**. It
 
 The AI agent commands (recipe generation, plan generation, natural-language edits) arrive in a later commit, and the JavaFX GUI after that.
 
+### AI configuration
+MealMind works without any AI provider: pantry, recipes, scaling, plans, profile checks and the shopping list are all deterministic. If AI is not configured, the CLI prints one line at startup ("AI features are disabled: …") and carries on. Startup never contacts the network.
+
+**OpenAI (primary, default model `gpt-4o`)**
+1. `cp .env.example .env` (Windows: `copy .env.example .env`).
+2. In `.env`, replace `YOUR_LOCAL_API_KEY_HERE` with your own key on the `LLM_API_KEY` line.
+3. Optionally change `LLM_MODEL`.
+
+**Ollama (local, no key needed, default model `llama3`)**
+1. Install Ollama from <https://ollama.com> and run `ollama pull llama3`.
+2. In `.env`, set `LLM_PROVIDER=ollama` and change `LLM_MODEL` to an Ollama model (for example `llama3`) or delete that line.
+3. `OLLAMA_BASE_URL` defaults to `http://localhost:11434`.
+
+**Checking the setup from the CLI**
+| Command | What it does |
+|---|---|
+| `llm status` | Shows the provider, model, whether AI is available (or why not) and the calls and tokens used this session |
+| `llm ping` | Sends **one tiny real request** ("Reply with the single word OK.", at most 8 tokens) and prints the reply and token counts |
+
+Failed AI calls print a one-line reason, such as "Could not reach Ollama at http://localhost:11434. Is it running?" or "The AI service rejected the API key (HTTP 401)". Transient failures are retried once automatically. The AI recipe, plan and editing commands arrive in later commits.
+
+**Never show `.env` in screenshots, screen recordings or demo videos**, and never paste a key into chat, reports or issues.
+
 ### Security
 * Never commit `.env`. Run `git status` before committing.
 * Never paste API keys into reports, screenshots, or demo videos.

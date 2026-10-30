@@ -5,6 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.mealmind.app.ApplicationContext;
+import com.mealmind.llm.LLMClient;
+import com.mealmind.llm.LlmErrorKind;
+import com.mealmind.llm.LlmException;
+import com.mealmind.llm.LlmRequest;
+import com.mealmind.llm.LlmResponse;
+import com.mealmind.llm.TokenUsage;
 import com.mealmind.model.MealType;
 import com.mealmind.shopping.ShoppingListFormatter;
 import java.io.BufferedReader;
@@ -415,5 +421,85 @@ class CLIHandlerTest {
         assertContains(run("profile frobnicate"), "Usage: profile show | profile diet <type>");
         assertContains(run("profile"), "Usage: profile show");
         assertContains(run("profile allergy list"), "Usage: profile allergy add|remove");
+    }
+
+    // ---- llm commands (fake client, no network) ----
+
+    /** A fake AI provider that answers with a fixed reply, or fails when {@code failure} is set. */
+    private static final class FakeClient implements LLMClient {
+        private final LlmErrorKind failure;
+        LlmRequest lastRequest;
+
+        FakeClient(LlmErrorKind failure) {
+            this.failure = failure;
+        }
+
+        @Override
+        public String providerName() {
+            return "FakeAI";
+        }
+
+        @Override
+        public String modelName() {
+            return "fake-model";
+        }
+
+        @Override
+        public LlmResponse complete(LlmRequest request) {
+            lastRequest = request;
+            if (failure != null) {
+                throw new LlmException(failure, "The AI service rejected the API key (HTTP 401)", null);
+            }
+            return new LlmResponse("  OK  ", new TokenUsage(14, 1), "fake-model");
+        }
+    }
+
+    @Test
+    void llmStatusWhenDisabledShowsReason() {
+        ctx.llm().disable("No OpenAI API key configured");
+
+        String output = run("llm status");
+
+        assertContains(output, "Provider: none");
+        assertContains(output, "Status: disabled (No OpenAI API key configured)");
+        assertContains(output, "AI calls: 0 ok, 0 failed; tokens: 0 prompt + 0 completion = 0 total");
+    }
+
+    @Test
+    void llmPingSuccessUpdatesStatus() {
+        FakeClient client = new FakeClient(null);
+        ctx.llm().useClient(client);
+        assertContains(run("llm status"), "Provider: FakeAI");
+        assertContains(run("llm status"), "Model: fake-model");
+
+        String ping = run("llm ping");
+
+        assertContains(ping, "AI reply: OK");
+        assertContains(ping, "Tokens: 14 prompt + 1 completion");
+        assertEquals(8, client.lastRequest.maxTokens());
+        assertEquals(0.0, client.lastRequest.temperature());
+        assertContains(run("llm status"), "AI calls: 1 ok, 0 failed; tokens: 14 prompt + 1 completion = 15 total");
+    }
+
+    @Test
+    void llmPingFailureIsReportedAndCounted() {
+        ctx.llm().useClient(new FakeClient(LlmErrorKind.AUTH));
+
+        assertContains(run("llm ping"), "Error: The AI service rejected the API key (HTTP 401)");
+        assertContains(run("llm status"), "AI calls: 0 ok, 1 failed");
+    }
+
+    @Test
+    void llmPingWhenDisabledPrintsDisabledError() {
+        assertContains(run("llm ping"), "Error: AI features are disabled: Not configured");
+    }
+
+    @Test
+    void unknownLlmSubcommandPrintsUsageAndHelpListsLlm() {
+        assertContains(run("llm use ollama"), "Usage: llm status | llm ping");
+        assertContains(run("llm"), "Usage: llm status | llm ping");
+        String help = run("help");
+        assertContains(help, "llm status");
+        assertContains(help, "llm ping");
     }
 }

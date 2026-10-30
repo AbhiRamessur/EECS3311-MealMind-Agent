@@ -1,6 +1,7 @@
 package com.mealmind.app;
 
 import com.mealmind.command.CommandHistory;
+import com.mealmind.llm.LlmService;
 import com.mealmind.model.MealPlan;
 import com.mealmind.model.RecipeBook;
 import com.mealmind.pantry.Pantry;
@@ -22,8 +23,8 @@ import java.util.function.Consumer;
 
 /**
  * Holds the shared model objects for one MealMind session: the pantry, recipe book, current meal
- * plan, command history, shopping-list generator, user profile and constraint validator, plus the
- * clock and data directory. The CLI (and
+ * plan, command history, shopping-list generator, user profile, constraint validator and AI service,
+ * plus the clock and data directory. The AI service starts unavailable; {@code Main} configures it. The CLI (and
  * later the GUI and the agent facade) work through this one object instead of creating their own.
  *
  * <p><strong>Persistence:</strong> the pantry and the profile are loaded from
@@ -49,6 +50,7 @@ public final class ApplicationContext {
     private final CommandHistory history;
     private final UserProfile profile;
     private final ConstraintValidator validator;
+    private final LlmService llm = new LlmService();
     private MealPlan plan;
     private ShoppingListGenerator generator;
     private Consumer<String> warningSink = System.err::println;
@@ -205,6 +207,16 @@ public final class ApplicationContext {
      */
     public ConstraintValidator validator() {
         return validator;
+    }
+
+    /**
+     * Returns the AI service (the LLM Strategy context). It is always present but starts unavailable
+     * until a client is configured.
+     *
+     * @return the service
+     */
+    public LlmService llm() {
+        return llm;
     }
 
     /**

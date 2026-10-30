@@ -23,7 +23,8 @@ public final class AppConfig {
     private static final String KEY_TIMEOUT_SECONDS = "LLM_TIMEOUT_SECONDS";
 
     private static final String DEFAULT_PROVIDER = "openai";
-    private static final String DEFAULT_MODEL = "gpt-4o";
+    private static final String DEFAULT_OPENAI_MODEL = "gpt-4o";
+    private static final String DEFAULT_OLLAMA_MODEL = "llama3";
     private static final String DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
     private static final String DEFAULT_TIMEOUT_SECONDS = "30";
 
@@ -65,7 +66,9 @@ public final class AppConfig {
 
         LlmProvider provider = parseProvider(lookup(KEY_PROVIDER, env, fileValues, DEFAULT_PROVIDER));
         String apiKey = lookup(KEY_API_KEY, env, fileValues, null);
-        String model = lookup(KEY_MODEL, env, fileValues, DEFAULT_MODEL);
+        // The default model depends on the provider: Ollama has no model called gpt-4o.
+        String defaultModel = provider == LlmProvider.OLLAMA ? DEFAULT_OLLAMA_MODEL : DEFAULT_OPENAI_MODEL;
+        String model = lookup(KEY_MODEL, env, fileValues, defaultModel);
         String ollamaBaseUrl = lookup(KEY_OLLAMA_BASE_URL, env, fileValues, DEFAULT_OLLAMA_BASE_URL);
         int timeoutSeconds = parseTimeout(lookup(KEY_TIMEOUT_SECONDS, env, fileValues, DEFAULT_TIMEOUT_SECONDS));
 

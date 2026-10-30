@@ -1,6 +1,7 @@
 package com.mealmind;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
@@ -26,8 +27,13 @@ class MainTest {
         return new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8));
     }
 
+    /** Uses a nonexistent .env so tests never read the developer's real one. */
     private int run(String input, String... args) {
-        return Main.run(args, input(input), out, Map.of("MEALMIND_DATA_DIR", dir.toString()));
+        return runWithEnv(Map.of("MEALMIND_DATA_DIR", dir.toString()), input, args);
+    }
+
+    private int runWithEnv(Map<String, String> env, String input, String... args) {
+        return Main.run(args, input(input), out, env, dir.resolve("no-such.env"));
     }
 
     private String output() {
@@ -68,5 +74,43 @@ class MainTest {
 
         assertEquals(1, run("exit\n"));
         assertTrue(output().startsWith("Error: "));
+    }
+
+    @Test
+    void missingKeyDisablesAiButCommandsStillWork() {
+        assertEquals(0, run("llm status\npantry add Rice 500 g\nexit\n"));
+
+        assertTrue(output().contains("AI features are disabled: No OpenAI API key configured"), output());
+        assertTrue(output().contains("Deterministic features still work."));
+        assertTrue(output().contains("Status: disabled (No OpenAI API key configured"));
+        assertTrue(output().contains("Added Rice. Pantry now has 500 g."));
+    }
+
+    @Test
+    void ollamaConfigEnablesAiWithoutContactingTheNetwork() {
+        // Port 1 on loopback is closed: if startup tried to connect, nothing would answer. Only 'llm ping'
+        // would make a call, and this session never sends it.
+        Map<String, String> env = Map.of("MEALMIND_DATA_DIR", dir.toString(), "LLM_PROVIDER", "ollama",
+                "OLLAMA_BASE_URL", "http://127.0.0.1:1");
+
+        assertEquals(0, runWithEnv(env, "llm status\nexit\n"));
+
+        assertFalse(output().contains("AI features are disabled"), output());
+        assertTrue(output().contains("Provider: Ollama"));
+        assertTrue(output().contains("Model: llama3"));
+        assertTrue(output().contains("Status: available"));
+        assertTrue(output().contains("AI calls: 0 ok, 0 failed"));
+    }
+
+    @Test
+    void versionAndHelpNeverLoadConfig() {
+        // An invalid provider would print a disabled line if configuration were loaded.
+        Map<String, String> env = Map.of("MEALMIND_DATA_DIR", dir.toString(), "LLM_PROVIDER", "bogus");
+
+        assertEquals(0, runWithEnv(env, "", "--version"));
+        assertEquals(0, runWithEnv(env, "", "--help"));
+
+        assertFalse(output().contains("disabled"), output());
+        assertFalse(output().contains("Welcome"), output());
     }
 }

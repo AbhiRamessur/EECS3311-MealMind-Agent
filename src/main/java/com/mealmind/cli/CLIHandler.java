@@ -6,6 +6,8 @@ import com.mealmind.command.ClearMealCommand;
 import com.mealmind.command.RemovePantryItemCommand;
 import com.mealmind.command.ReplaceMealCommand;
 import com.mealmind.command.ScaleRecipeCommand;
+import com.mealmind.config.ConfigurationException;
+import com.mealmind.llm.LlmException;
 import com.mealmind.model.DayPlan;
 import com.mealmind.model.IncompatibleUnitException;
 import com.mealmind.model.Ingredient;
@@ -48,6 +50,7 @@ import java.util.stream.Collectors;
  * <p>Profile commands (F01) are handled by {@link ProfileCommands}. Before {@code plan set} changes
  * the plan, the new meal is checked by the {@code ConstraintValidator}: an allergen or diet conflict
  * refuses the change (Stage 1 F06 rule), and target/budget advisories are printed as warnings.
+ * The {@code llm} commands are handled by {@link LlmCommands}.
  */
 public final class CLIHandler {
 
@@ -74,6 +77,7 @@ public final class CLIHandler {
     private final PrintStream out;
     private final CLIConsoleView view;
     private final ProfileCommands profileCommands;
+    private final LlmCommands llmCommands;
     private ShoppingListGenerator watchedGenerator;
 
     /**
@@ -90,6 +94,7 @@ public final class CLIHandler {
         this.out = Objects.requireNonNull(out, "out");
         this.view = new CLIConsoleView(out);
         this.profileCommands = new ProfileCommands(ctx.profile(), out);
+        this.llmCommands = new LlmCommands(ctx.llm(), out);
         watch(ctx.generator());
     }
 
@@ -144,7 +149,8 @@ public final class CLIHandler {
         } catch (UsageException e) {
             out.println("Usage: " + e.getMessage());
         } catch (IllegalArgumentException | IncompatibleUnitException | NoSuchElementException
-                 | IllegalStateException | DateTimeParseException | RepositoryException e) {
+                 | IllegalStateException | DateTimeParseException | RepositoryException
+                 | LlmException | ConfigurationException e) {
             out.println("Error: " + e.getMessage());
         }
     }
@@ -155,6 +161,7 @@ public final class CLIHandler {
             case "exit", "quit" -> { }
             case "pantry" -> pantry(args);
             case "profile" -> profileCommands.handle(args);
+            case "llm" -> llmCommands.handle(args);
             case "recipe" -> recipe(args);
             case "plan" -> plan(args);
             case "shopping" -> shopping(args);
@@ -190,6 +197,8 @@ public final class CLIHandler {
         out.println("  " + ProfileCommands.DIET_USAGE);
         out.println("  " + ProfileCommands.ALLERGY_USAGE);
         out.println("  " + ProfileCommands.UPDATE_USAGE);
+        out.println("  llm status");
+        out.println("  llm ping   (sends one tiny request to the configured AI provider)");
         out.println("  shopping list");
         out.println("  " + SHOPPING_EXPORT_USAGE);
         out.println("  undo");
