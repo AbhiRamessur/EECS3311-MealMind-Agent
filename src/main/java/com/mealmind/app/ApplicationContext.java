@@ -1,5 +1,7 @@
 package com.mealmind.app;
 
+import com.mealmind.agent.AgentFacade;
+import com.mealmind.agent.AgentLimits;
 import com.mealmind.agent.AgentMemory;
 import com.mealmind.command.CommandHistory;
 import com.mealmind.llm.LlmService;
@@ -31,7 +33,8 @@ import java.util.function.Consumer;
 /**
  * Holds the shared model objects for one MealMind session: the pantry, recipe book, current meal
  * plan, command history, shopping-list generator, user profile, constraint validator, AI service,
- * the agent's read-only tools and its session memory, plus the clock and data directory. The AI
+ * the agent's read-only tools, its session memory and the {@link AgentFacade} for AI features, plus
+ * the clock and data directory. The AI
  * service starts unavailable; {@code Main} configures it. The CLI (and
  * later the GUI and the agent facade) work through this one object instead of creating their own.
  *
@@ -61,6 +64,7 @@ public final class ApplicationContext {
     private final LlmService llm = new LlmService();
     private final AgentMemory memory = new AgentMemory();
     private final ToolManager tools = new ToolManager();
+    private final AgentFacade agent;
     private MealPlan plan;
     private ShoppingListGenerator generator;
     private Consumer<String> warningSink = System.err::println;
@@ -76,6 +80,7 @@ public final class ApplicationContext {
         this.plan = new MealPlan(PLAN_NAME, DEFAULT_PLAN_DAYS);
         this.generator = new ShoppingListGenerator(plan, pantry);
         registerTools();
+        this.agent = new AgentFacade(llm, tools, memory, validator, profile, recipeBook, AgentLimits.defaults());
     }
 
     /**
@@ -249,6 +254,15 @@ public final class ApplicationContext {
      */
     public ToolManager tools() {
         return tools;
+    }
+
+    /**
+     * Returns the facade for AI features (recipe generation and the pending candidate).
+     *
+     * @return the agent facade
+     */
+    public AgentFacade agent() {
+        return agent;
     }
 
     /**

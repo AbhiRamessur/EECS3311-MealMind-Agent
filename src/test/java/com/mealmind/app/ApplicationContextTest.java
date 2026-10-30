@@ -2,10 +2,16 @@ package com.mealmind.app;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mealmind.command.AddPantryItemCommand;
+import com.mealmind.llm.LLMClient;
+import com.mealmind.llm.LlmErrorKind;
+import com.mealmind.llm.LlmException;
+import com.mealmind.llm.LlmRequest;
+import com.mealmind.llm.LlmResponse;
 import com.mealmind.model.Meal;
 import com.mealmind.model.MealPlan;
 import com.mealmind.model.MealType;
@@ -193,5 +199,36 @@ class ApplicationContextTest {
         ToolResult list = ctx.tools().execute(
                 new ToolCall("shopping_list", json.createObjectNode()));
         assertEquals(7, json.readTree(list.json()).get("count").asInt());
+    }
+
+    @Test
+    void agentUsesTheSharedMemoryAndTools() {
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK);
+        List<LlmRequest> requests = new ArrayList<>();
+        ctx.llm().useClient(new LLMClient() {
+            @Override
+            public String providerName() {
+                return "Recording";
+            }
+
+            @Override
+            public String modelName() {
+                return "fake";
+            }
+
+            @Override
+            public LlmResponse complete(LlmRequest request) {
+                requests.add(request);
+                throw new LlmException(LlmErrorKind.TIMEOUT, "stop here", null);
+            }
+        });
+        ctx.memory().remember("Prefers spicy food");
+
+        assertThrows(LlmException.class, () -> ctx.agent().generateRecipe("dinner", null));
+
+        String systemPrompt = requests.get(0).messages().get(0).content();
+        assertTrue(systemPrompt.contains("- Prefers spicy food"), systemPrompt);
+        assertTrue(systemPrompt.contains("recipe_search("), systemPrompt);
+        assertTrue(ctx.agent().pendingRecipe().isEmpty());
     }
 }

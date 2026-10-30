@@ -157,6 +157,26 @@ The AI agent (added in the next commit) will see the app only through five **rea
 
 Tools never change your data. `recipe_search` never shows a recipe that conflicts with your diet or allergens; it only reports how many were hidden (`excludedForSafety`). `check_safety` explains why a recipe is not allowed.
 
+#### AI agent: recipe generation
+`recipe generate` asks the AI agent for a new recipe. The agent may look things up with the read-only tools above (for example your pantry or existing recipes) and then drafts a recipe. MealMind's own deterministic checker then validates the draft against your diet and allergens. An unsafe draft is sent back to the model for correction, up to 3 times. If the agent still cannot produce a safe recipe, the result is shown only as a warning. The agent's steps are printed live as `[agent] …` lines.
+
+| Command | Example |
+|---|---|
+| `recipe generate <what you want>` | `recipe generate high protein vegan pasta for two` |
+| `recipe pending` | `recipe pending` (shows the last generated recipe and its safety status) |
+| `recipe discard` | `recipe discard` |
+| `memory show` | `memory show` (preferences the agent will take into account) |
+| `memory remember "<fact>"` | `memory remember "I dislike cilantro"` |
+| `memory forget "<fact>"` | `memory forget "I dislike cilantro"` |
+| `memory clear` | `memory clear` |
+
+Limitations:
+- Nutrition and cost values in generated recipes are **AI estimates**, checked only for plausibility (calories must roughly match the protein, carbs and fat). There is no nutrition database.
+- The safety check is a keyword heuristic on ingredient names. It cannot see hidden ingredients and is **not medical advice**.
+- Generated recipes **cannot be saved yet**: the recipe stays pending until you generate another or discard it. Saving arrives in a later commit.
+- Results depend on the model you configure.
+- Each generation makes several paid API calls. Use an API key with a low spending limit, and check the token totals with `llm status`.
+
 ### AI configuration
 MealMind works without any AI provider: pantry, recipes, scaling, plans, profile checks and the shopping list are all deterministic. If AI is not configured, the CLI prints one line at startup ("AI features are disabled: …") and carries on. Startup never contacts the network.
 

@@ -1,5 +1,6 @@
 package com.mealmind.cli;
 
+import com.mealmind.agent.AgentException;
 import com.mealmind.app.ApplicationContext;
 import com.mealmind.command.AddPantryItemCommand;
 import com.mealmind.command.ClearMealCommand;
@@ -50,7 +51,8 @@ import java.util.stream.Collectors;
  * <p>Profile commands (F01) are handled by {@link ProfileCommands}. Before {@code plan set} changes
  * the plan, the new meal is checked by the {@code ConstraintValidator}: an allergen or diet conflict
  * refuses the change (Stage 1 F06 rule), and target/budget advisories are printed as warnings.
- * The {@code llm} commands are handled by {@link LlmCommands}, and the {@code tools} commands (a
+ * The {@code llm} commands are handled by {@link LlmCommands}, the AI agent commands ({@code recipe
+ * generate/pending/discard}, {@code memory}) by {@link AgentCommands}, and the {@code tools} commands (a
  * developer and demo aid for the agent's read-only tools) by {@link ToolCommands}.
  */
 public final class CLIHandler {
@@ -60,7 +62,7 @@ public final class CLIHandler {
     private static final String PANTRY_USAGE = "pantry add|list|remove ...";
     private static final String PANTRY_ADD_USAGE = "pantry add \"<name>\" <qty> <unit> [expiry yyyy-MM-dd]";
     private static final String PANTRY_REMOVE_USAGE = "pantry remove \"<name>\"";
-    private static final String RECIPE_USAGE = "recipe list|show|scale ...";
+    private static final String RECIPE_USAGE = "recipe list|show|scale|generate|pending|discard ...";
     private static final String RECIPE_SHOW_USAGE = "recipe show <id>";
     private static final String RECIPE_SCALE_USAGE = "recipe scale --id <id> --servings <n>";
     private static final String PLAN_USAGE = "plan new|set|clear|show|check ...";
@@ -80,6 +82,7 @@ public final class CLIHandler {
     private final ProfileCommands profileCommands;
     private final LlmCommands llmCommands;
     private final ToolCommands toolCommands;
+    private final AgentCommands agentCommands;
     private ShoppingListGenerator watchedGenerator;
 
     /**
@@ -98,6 +101,7 @@ public final class CLIHandler {
         this.profileCommands = new ProfileCommands(ctx.profile(), out);
         this.llmCommands = new LlmCommands(ctx.llm(), out);
         this.toolCommands = new ToolCommands(ctx.tools(), out);
+        this.agentCommands = new AgentCommands(ctx.agent(), ctx.memory(), out);
         watch(ctx.generator());
     }
 
@@ -159,7 +163,7 @@ public final class CLIHandler {
             out.println("Usage: " + e.getMessage());
         } catch (IllegalArgumentException | IncompatibleUnitException | NoSuchElementException
                  | IllegalStateException | DateTimeParseException | RepositoryException
-                 | LlmException | ConfigurationException e) {
+                 | LlmException | ConfigurationException | AgentException e) {
             out.println("Error: " + e.getMessage());
         }
     }
@@ -171,6 +175,7 @@ public final class CLIHandler {
             case "pantry" -> pantry(args);
             case "profile" -> profileCommands.handle(args);
             case "llm" -> llmCommands.handle(args);
+            case "memory" -> agentCommands.memory(args);
             case "recipe" -> recipe(args);
             case "plan" -> plan(args);
             case "shopping" -> shopping(args);
@@ -208,6 +213,13 @@ public final class CLIHandler {
         out.println("  " + ProfileCommands.UPDATE_USAGE);
         out.println("  llm status");
         out.println("  llm ping   (sends one tiny request to the configured AI provider)");
+        out.println("  " + AgentCommands.GENERATE_USAGE + "   (AI agent drafts a recipe; it is not saved)");
+        out.println("  recipe pending");
+        out.println("  recipe discard");
+        out.println("  memory show");
+        out.println("  memory remember \"<fact>\"");
+        out.println("  memory forget \"<fact>\"");
+        out.println("  memory clear");
         out.println("  tools list");
         out.println("  tools schema");
         out.println("  tools call <name> [json]   (runs one read-only agent tool, e.g. tools call pantry_query {})");
@@ -302,6 +314,9 @@ public final class CLIHandler {
             case "list" -> recipeList();
             case "show" -> recipeShow(rest);
             case "scale" -> recipeScale(rest);
+            case "generate" -> agentCommands.generate(rest);
+            case "pending" -> agentCommands.pending();
+            case "discard" -> agentCommands.discard();
             default -> throw new UsageException(RECIPE_USAGE);
         }
     }

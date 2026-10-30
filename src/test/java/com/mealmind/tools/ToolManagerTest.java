@@ -267,4 +267,32 @@ class ToolManagerTest {
 
         assertEquals(3, manager.executionCount());
     }
+
+    // ---- extractJsonObject and prompt wording (commit 11) ----
+
+    @Test
+    void extractJsonObjectFindsTheFirstObject() {
+        assertEquals("plan_show", manager.extractJsonObject("{\"tool\": \"plan_show\"}").orElseThrow().get("tool").asText());
+        assertEquals(1, manager.extractJsonObject("```json\n{\"a\": 1}\n```").orElseThrow().get("a").asInt());
+        assertEquals(2, manager.extractJsonObject("```\n{\"a\": 2}\n```").orElseThrow().get("a").asInt());
+        assertEquals(3, manager.extractJsonObject("Here it is: {\"a\": 3} hope that helps").orElseThrow().get("a").asInt());
+        assertEquals("x } { \" y", manager.extractJsonObject("{\"s\": \"x } { \\\" y\"} tail }").orElseThrow().get("s").asText());
+        assertEquals(1, manager.extractJsonObject("{\"first\": 1} and {\"second\": 2}").orElseThrow().get("first").asInt());
+    }
+
+    @Test
+    void extractJsonObjectIsEmptyWhenThereIsNoValidObject() {
+        assertTrue(manager.extractJsonObject("no json here").isEmpty());
+        assertTrue(manager.extractJsonObject("{tool: plan_show}").isEmpty());
+        assertTrue(manager.extractJsonObject("{\"unclosed\": 1").isEmpty());
+        assertTrue(manager.extractJsonObject(null).isEmpty());
+    }
+
+    @Test
+    void describeForPromptShowsArrayOfStrings() {
+        String description = manager.describeForPrompt();
+
+        assertTrue(description.contains("tags?: array of strings"), description);
+        assertTrue(description.contains("    tags (array of strings, optional): Labels"), description);
+    }
 }

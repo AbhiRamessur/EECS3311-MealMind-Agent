@@ -15,6 +15,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Registers the agent's tools, describes them to the language model, parses tool calls out of model
@@ -93,20 +94,29 @@ public final class ToolManager {
     /**
      * Describes the tools as text for a prompt: one line per tool,
      * {@code "- recipe_search(query?: string, ...): <description>"}, followed by one indented line per
-     * argument, {@code "    query (string, optional): <description>"}.
+     * argument, {@code "    query (string, optional): <description>"}. String-array arguments are
+     * shown as {@code "array of strings"}.
      *
      * @return the description, sorted by tool name
      */
     public String describeForPrompt() {
         List<String> lines = new ArrayList<>();
         for (ToolSpec spec : specs()) {
-            lines.add("- " + spec.signature() + ": " + spec.description());
+            String signature = spec.params().stream()
+                    .map(p -> p.name() + (p.required() ? "" : "?") + ": " + typeLabel(p.type()))
+                    .collect(Collectors.joining(", ", spec.name() + "(", ")"));
+            lines.add("- " + signature + ": " + spec.description());
             for (ToolParam param : spec.params()) {
-                lines.add("    " + param.name() + " (" + param.type().jsonType() + ", "
+                lines.add("    " + param.name() + " (" + typeLabel(param.type()) + ", "
                         + (param.required() ? "required" : "optional") + "): " + param.description());
             }
         }
         return String.join("\n", lines);
+    }
+
+    /** The type name shown to the model: "array of strings" is clearer than the schema's "array". */
+    private static String typeLabel(ParamType type) {
+        return type == ParamType.STRING_ARRAY ? "array of strings" : type.jsonType();
     }
 
     /**
@@ -133,17 +143,10 @@ public final class ToolManager {
         if (llmText == null || llmText.isBlank()) {
             throw new ToolParseException("The reply is empty; expected a JSON object like {\"tool\": \"...\", \"arguments\": {}}");
         }
-        Matcher fence = FENCE.matcher(llmText);
-        Optional<String> json = fence.find() ? firstObject(fence.group(1)) : Optional.empty();
-        String objectText = json.or(() -> firstObject(llmText))
+        String objectText = objectText(llmText)
                 .orElseThrow(() -> new ToolParseException("No JSON object found in the reply"));
-
-        JsonNode root;
-        try {
-            root = ToolJson.MAPPER.readTree(objectText);
-        } catch (JsonProcessingException e) {
-            throw new ToolParseException("The reply contains invalid JSON: " + truncate(e.getOriginalMessage(), 200));
-        }
+        JsonNode root = extractJsonObject(llmText)
+                .orElseThrow(() -> new ToolParseException("The reply contains invalid JSON: " + jsonError(objectText)));
         JsonNode tool = root.get("tool");
         if (tool == null || !tool.isTextual() || tool.asText().isBlank()) {
             throw new ToolParseException("The JSON must contain a string field named 'tool'");
@@ -153,6 +156,44 @@ public final class ToolManager {
             throw new ToolParseException("'arguments' must be a JSON object");
         }
         return new ToolCall(tool.asText(), arguments);
+    }
+
+    /**
+     * Finds the first JSON object in model output: bare, inside a {@code ```} or {@code ```json} fence,
+     * or embedded in prose (the first balanced {@code {...}}, ignoring braces inside JSON strings).
+     *
+     * @param text the model's reply, may be null
+     * @return the parsed object, or empty if there is none or it is not valid JSON
+     */
+    public Optional<JsonNode> extractJsonObject(String text) {
+        if (text == null) {
+            return Optional.empty();
+        }
+        return objectText(text).flatMap(candidate -> {
+            try {
+                JsonNode node = ToolJson.MAPPER.readTree(candidate);
+                return node != null && node.isObject() ? Optional.of(node) : Optional.empty();
+            } catch (JsonProcessingException e) {
+                return Optional.empty();
+            }
+        });
+    }
+
+    /** The text of the first {...} candidate: inside the first code fence if there is one, else anywhere. */
+    private static Optional<String> objectText(String text) {
+        Matcher fence = FENCE.matcher(text);
+        Optional<String> fenced = fence.find() ? firstObject(fence.group(1)) : Optional.empty();
+        return fenced.or(() -> firstObject(text));
+    }
+
+    /** Jackson's short description of why {@code json} does not parse. */
+    private static String jsonError(String json) {
+        try {
+            ToolJson.MAPPER.readTree(json);
+            return "not a JSON object";
+        } catch (JsonProcessingException e) {
+            return truncate(e.getOriginalMessage(), 200);
+        }
     }
 
     /** The first balanced {...} in {@code text}, ignoring braces inside JSON strings. */

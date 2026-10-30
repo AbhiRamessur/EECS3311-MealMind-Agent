@@ -26,6 +26,9 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -570,5 +573,170 @@ class CLIHandlerTest {
         assertContains(help, "tools list");
         assertContains(help, "tools schema");
         assertContains(help, "tools call <name> [json]");
+    }
+
+    // ---- AI agent: recipe generate / pending / discard, memory (scripted model, no network) ----
+
+    /** A scripted model: answers with queued replies (or fails) and records every request. */
+    private static final class ScriptedAiClient implements LLMClient {
+        final List<LlmRequest> requests = new ArrayList<>();
+        final ArrayDeque<String> replies = new ArrayDeque<>();
+        LlmException failure;
+
+        ScriptedAiClient reply(String... contents) {
+            replies.addAll(List.of(contents));
+            return this;
+        }
+
+        @Override
+        public String providerName() {
+            return "ScriptedAI";
+        }
+
+        @Override
+        public String modelName() {
+            return "scripted-model";
+        }
+
+        @Override
+        public LlmResponse complete(LlmRequest request) {
+            requests.add(request);
+            if (failure != null) {
+                throw failure;
+            }
+            return new LlmResponse(replies.remove(), new TokenUsage(300, 120), "scripted-model");
+        }
+    }
+
+    /** A recipe reply whose ingredients are 100 g with 20 g protein, 50 g carbs, 10 g fat, 370 kcal and $1.50. */
+    private static String recipeReply(String name, String... ingredients) {
+        StringBuilder list = new StringBuilder();
+        for (String ingredient : ingredients) {
+            list.append(list.length() == 0 ? "" : ", ").append("{\"name\": \"").append(ingredient)
+                    .append("\", \"quantity\": 100, \"unit\": \"g\", \"calories\": 370, \"proteinG\": 20, ")
+                    .append("\"carbsG\": 50, \"fatG\": 10, \"cost\": 1.5}");
+        }
+        return "{\"recipe\": {\"name\": \"" + name + "\", \"servings\": 2, \"prepMinutes\": 25, \"ingredients\": ["
+                + list + "], \"instructions\": [\"Boil the pasta.\", \"Toss with the sauce.\"]}}";
+    }
+
+    private ScriptedAiClient useScriptedAi() {
+        ScriptedAiClient client = new ScriptedAiClient();
+        ctx.llm().useClient(client);
+        return client;
+    }
+
+    @Test
+    void recipeGeneratePrintsActivityPreviewSafetyAndStats() {
+        useScriptedAi().reply(recipeReply("Chickpea Pasta", "Chickpea pasta", "Spinach"));
+
+        String output = run("recipe generate high protein vegan pasta");
+
+        assertContains(output, "[agent] Asking the model (call 1)");
+        assertContains(output, "[agent] Safety check passed");
+        assertContains(output, "Generated recipe AI001: Chickpea Pasta");
+        assertContains(output, "Servings: 2 | Prep: 25 min");
+        assertContains(output, "Per serving: 370 kcal, 20.0 g protein, 50.0 g carbs, 10.0 g fat, $1.50");
+        assertContains(output, "  - 100 g Chickpea pasta");
+        assertContains(output, "  1. Boil the pasta.");
+        assertContains(output, "Nutrition and cost values are AI estimates.");
+        assertContains(output, "Agent: 1 model calls, 0 tool calls, 0 repairs, 0 safety retries; tokens: 300 prompt + 120 completion");
+        assertContains(output, "Safety check: passed");
+        assertTrue(output.strip().endsWith("Pending recipe: AI001 (not saved)."), output);
+    }
+
+    @Test
+    void unsafeGenerationPrintsSafetyWarning() {
+        run("profile diet vegetarian");
+        ScriptedAiClient client = useScriptedAi();
+        for (int i = 0; i < 4; i++) {
+            client.reply(recipeReply("Chicken Pasta", "Chicken breast", "Pasta"));
+        }
+
+        String output = run("recipe generate chicken pasta");
+
+        assertContains(output, "SAFETY WARNING: this recipe could not be made safe for your profile after 4 attempts. It must not be used:");
+        assertContains(output, "    Chicken breast is not allowed for a vegetarian diet");
+        assertContains(output, "Pending recipe AI001 is flagged unsafe.");
+        assertContains(run("recipe pending"), "SAFETY WARNING");
+    }
+
+    @Test
+    void recipeGenerateErrors() {
+        assertContains(run("recipe generate"), "Usage: recipe generate \"<what you want to eat>\"");
+        assertContains(run("recipe generate pasta"), "Error: AI features are disabled: Not configured");
+
+        ScriptedAiClient client = useScriptedAi();
+        client.failure = new LlmException(LlmErrorKind.SERVER_ERROR, "The AI service had an internal error (HTTP 500)", null);
+        String output = run("recipe generate pasta");
+        assertContains(output, "Error: The AI service had an internal error (HTTP 500)");
+        assertFalse(output.contains("at com.mealmind"), output);
+        assertContains(run("recipe pending"), "No pending recipe.");
+    }
+
+    @Test
+    void pendingDiscardAndReplacement() {
+        assertContains(run("recipe pending"), "No pending recipe.");
+        assertContains(run("recipe discard"), "No pending recipe.");
+        useScriptedAi().reply(recipeReply("First Pasta", "Pasta", "Tomato sauce"), recipeReply("Second Pasta", "Pasta", "Pesto"));
+
+        run("recipe generate first");
+        assertContains(run("recipe pending"), "Generated recipe AI001: First Pasta");
+        assertContains(run("recipe generate second"), "Generated recipe AI001: Second Pasta");
+        assertContains(run("recipe pending"), "Second Pasta");
+
+        assertContains(run("recipe discard"), "Discarded pending recipe AI001.");
+        assertContains(run("recipe pending"), "No pending recipe.");
+    }
+
+    @Test
+    void generatingChangesNoStoredData() {
+        useScriptedAi().reply(recipeReply("Bowl", "Rice", "Beans"));
+
+        run("recipe generate a bowl");
+
+        assertEquals(10, run("recipe list").lines().count());
+        assertContains(run("recipe show AI001"), "Error: No recipe with id 'AI001'");
+        assertTrue(ctx.pantry().isEmpty());
+        assertEquals(0, ctx.history().undoSize());
+    }
+
+    @Test
+    void memoryCommands() {
+        assertContains(run("memory show"), "No remembered preferences.");
+        assertContains(run("memory remember \"I dislike   cilantro\""), "Remembered: I dislike cilantro");
+        assertContains(run("memory remember \"i DISLIKE cilantro\""), "Already remembered.");
+        String shown = run("memory show");
+        assertContains(shown, "1. I dislike cilantro");
+        assertContains(shown, "Conversation messages: 0");
+        assertContains(run("memory forget \"I DISLIKE CILANTRO\""), "Forgot: I DISLIKE CILANTRO");
+        assertContains(run("memory forget \"never said\""), "Not found.");
+        assertContains(run("memory remember \" \""), "Error: A fact must not be blank");
+        run("memory remember \"Cooks for two\"");
+        assertContains(run("memory clear"), "Cleared remembered preferences and conversation.");
+        assertContains(run("memory show"), "No remembered preferences.");
+        assertContains(run("memory dump"), "Usage: memory show | memory remember \"<fact>\" | memory forget \"<fact>\" | memory clear");
+    }
+
+    @Test
+    void rememberedFactsReachTheNextSystemPrompt() {
+        ScriptedAiClient client = useScriptedAi().reply(recipeReply("Bowl", "Rice", "Beans"));
+        run("memory remember \"Prefers quick breakfasts\"");
+
+        run("recipe generate breakfast");
+
+        assertContains(client.requests.get(0).messages().get(0).content(), "- Prefers quick breakfasts");
+        assertContains(run("memory show"), "Conversation messages: 2");
+    }
+
+    @Test
+    void helpListsAgentCommands() {
+        String help = run("help");
+
+        for (String command : new String[] {"recipe generate", "recipe pending", "recipe discard", "memory show",
+                "memory remember", "memory forget", "memory clear"}) {
+            assertContains(help, command);
+        }
+        assertContains(run("recipe"), "Usage: recipe list|show|scale|generate|pending|discard");
     }
 }
