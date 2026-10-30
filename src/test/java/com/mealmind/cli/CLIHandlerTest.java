@@ -301,4 +301,119 @@ class CLIHandlerTest {
                 .run();
         assertContains(eofOut.toString(StandardCharsets.UTF_8), "Commands:");
     }
+
+    // ---- profile (F01) and safety checks ----
+
+    @Test
+    void profileShowOnDefaults() {
+        String output = run("profile show");
+
+        assertContains(output, "Diet: Omnivore");
+        assertContains(output, "Allergens: none");
+        assertContains(output, "Calorie target: not set");
+        assertContains(output, "Protein target: not set");
+        assertContains(output, "Weekly budget: not set");
+        assertContains(output, "Household servings: 1");
+    }
+
+    @Test
+    void dietAndAllergyChangesAppearInProfileShow() {
+        assertContains(run("profile diet Vegetarian"), "Diet set to Vegetarian.");
+        assertContains(run("profile allergy add \"Tree Nuts\""), "Allergen added: tree nuts");
+        assertContains(run("profile allergy add peanut"), "Allergen added: peanut");
+        assertContains(run("profile allergy add PEANUT"), "Allergen already listed: peanut");
+
+        String shown = run("profile show");
+        assertContains(shown, "Diet: Vegetarian");
+        assertContains(shown, "Allergens: peanut, tree nuts");
+
+        assertContains(run("profile allergy remove peanut"), "Allergen removed: peanut");
+        assertContains(run("profile allergy remove peanut"), "Allergen not listed: peanut");
+        assertContains(run("profile diet keto"), "Error: Unknown diet 'keto'");
+    }
+
+    @Test
+    void profileUpdateSetsClearsAndValidatesAllBeforeApplying() {
+        assertContains(run("profile update --calories 2000 --protein 120 --budget 100 --servings 2"),
+                "Profile updated: calories 2000, protein 120, budget 100, servings 2");
+        String shown = run("profile show");
+        assertContains(shown, "Calorie target: 2000 kcal/day");
+        assertContains(shown, "Protein target: 120 g/day");
+        assertContains(shown, "Weekly budget: $100.00");
+        assertContains(shown, "Household servings: 2");
+
+        assertContains(run("profile update --calories none"), "Profile updated: calories cleared");
+        assertContains(run("profile update"), "Usage: profile update");
+        assertContains(run("profile update --calories lots"), "Usage: profile update");
+
+        assertContains(run("profile update --calories 1800 --budget -5"), "Error: Weekly budget must be");
+        assertTrue(ctx.profile().getCalorieTarget().isEmpty(), "a bad flag must change nothing");
+        assertEquals(100.0, ctx.profile().getWeeklyBudget().orElseThrow());
+    }
+
+    @Test
+    void planSetRefusesAllergenAndLeavesPlanAndHistoryUntouched() {
+        run("profile allergy add peanut");
+
+        String output = run("plan set 1 snack R109");
+
+        assertContains(output, "Refused: Peanut butter contains peanut, a listed allergen");
+        assertFalse(output.contains("[update]"));
+        assertTrue(ctx.plan().getMeal(1, MealType.SNACK).isEmpty());
+        assertEquals(0, ctx.history().undoSize());
+        assertContains(run("undo"), "Nothing to undo.");
+    }
+
+    @Test
+    void vegetarianProfileRefusesMeatRecipeAndAcceptsSafeOne() {
+        run("profile diet vegetarian");
+
+        assertContains(run("plan set 1 dinner R101"), "Refused: Chicken breast is not allowed for a vegetarian diet");
+        assertTrue(ctx.plan().getMeal(1, MealType.DINNER).isEmpty());
+
+        assertContains(run("plan set 1 dinner R103"), "Day 1 Dinner: Red Lentil Soup (4 servings)");
+        assertContains(run("undo"), "Undone: Replace Day 1 DINNER with Red Lentil Soup");
+    }
+
+    @Test
+    void profileChangeAfterPlanningIsReportedByPlanCheckAndShow() {
+        run("plan set 1 dinner R101");
+        assertContains(run("plan check"), "Plan is safe and within your targets.");
+
+        run("profile diet vegetarian");
+
+        String check = run("plan check");
+        assertContains(check, "SAFETY: Chicken breast is not allowed for a vegetarian diet");
+        assertContains(check, "Summary: 1 safety issue");
+        assertContains(run("plan show"), "SAFETY: Chicken breast is not allowed for a vegetarian diet");
+    }
+
+    @Test
+    void advisoriesPrintAsWarningsAfterPlanSet() {
+        run("profile update --calories 1200");
+
+        String output = run("plan set 1 dinner R101");
+
+        assertContains(output, "Day 1 Dinner: Chicken Stir-Fry (2 servings)");
+        assertContains(output, "Warning: Day 1: 1414 kcal is above 110% of your 1200 kcal target");
+        assertContains(run("plan check"), "Advisory: Day 1: 1414 kcal");
+        assertContains(run("plan show"), "Advisory: Day 1: 1414 kcal");
+    }
+
+    @Test
+    void recipeShowIncludesProfileCheck() {
+        assertContains(run("recipe show R109"), "Profile check: OK");
+
+        run("profile allergy add peanut");
+
+        assertContains(run("recipe show R109"), "Profile check: Peanut butter contains peanut, a listed allergen");
+        assertContains(run("recipe show R103"), "Profile check: OK");
+    }
+
+    @Test
+    void unknownProfileSubcommandPrintsUsage() {
+        assertContains(run("profile frobnicate"), "Usage: profile show | profile diet <type>");
+        assertContains(run("profile"), "Usage: profile show");
+        assertContains(run("profile allergy list"), "Usage: profile allergy add|remove");
+    }
 }

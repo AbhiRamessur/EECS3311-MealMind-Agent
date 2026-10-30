@@ -10,6 +10,7 @@ import com.mealmind.model.MealPlan;
 import com.mealmind.model.MealType;
 import com.mealmind.model.Unit;
 import com.mealmind.pantry.PantryItem;
+import com.mealmind.profile.DietType;
 import com.mealmind.shopping.ShoppingList;
 import com.mealmind.shopping.ShoppingListGenerator;
 import java.io.IOException;
@@ -21,6 +22,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -106,6 +109,58 @@ class ApplicationContextTest {
         newPlan.setMeal(1, MealType.DINNER, recipeMeal(ctx, "R101"));
         ShoppingList list = newGenerator.getCurrent();
         assertEquals(7, list.size());
+    }
+
+    @Test
+    void profileIsAutosavedAndRestored() {
+        ApplicationContext first = ApplicationContext.create(dir, CLOCK);
+        first.profile().setDiet(DietType.VEGAN);
+        first.profile().addAllergen("Peanut");
+        first.profile().setCalorieTarget(2100);
+
+        ApplicationContext second = ApplicationContext.create(dir, CLOCK);
+
+        assertEquals(DietType.VEGAN, second.profile().getDiet());
+        assertEquals(Set.of("peanut"), second.profile().getAllergens());
+        assertEquals(Optional.of(2100), second.profile().getCalorieTarget());
+        assertTrue(Files.exists(second.profileFile()));
+    }
+
+    @Test
+    void loadingProfileDoesNotTriggerSave() throws IOException {
+        Path file = dir.resolve("profile.json");
+        String handWritten = "{\"diet\":\"vegetarian\",\"allergens\":[\"Sesame\"],\"householdServings\":2}";
+        Files.writeString(file, handWritten);
+
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK);
+
+        assertEquals(DietType.VEGETARIAN, ctx.profile().getDiet());
+        assertEquals(Set.of("sesame"), ctx.profile().getAllergens());
+        assertEquals(handWritten, Files.readString(file));
+    }
+
+    @Test
+    void failedProfileSaveIsReportedNotThrown() throws IOException {
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK);
+        List<String> warnings = new ArrayList<>();
+        ctx.setWarningSink(warnings::add);
+        Files.createDirectories(ctx.profileFile());
+        Files.writeString(ctx.profileFile().resolve("blocker.txt"), "x");
+
+        ctx.profile().setDiet(DietType.VEGAN);
+
+        assertEquals(DietType.VEGAN, ctx.profile().getDiet());
+        assertEquals(1, warnings.size());
+        assertTrue(warnings.get(0).contains("profile changes were not saved"), warnings.get(0));
+    }
+
+    @Test
+    void validatorChecksAgainstTheContextProfile() {
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK);
+        ctx.profile().setDiet(DietType.VEGETARIAN);
+
+        assertFalse(ctx.validator().isSafe(ctx.recipeBook().get("R101").orElseThrow()));
+        assertTrue(ctx.validator().isSafe(ctx.recipeBook().get("R103").orElseThrow()));
     }
 
     @Test

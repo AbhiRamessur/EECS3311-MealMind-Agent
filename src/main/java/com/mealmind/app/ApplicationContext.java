@@ -6,9 +6,12 @@ import com.mealmind.model.RecipeBook;
 import com.mealmind.pantry.Pantry;
 import com.mealmind.pantry.PantryItem;
 import com.mealmind.persistence.PantryRepository;
+import com.mealmind.persistence.ProfileRepository;
 import com.mealmind.persistence.RecipeRepository;
 import com.mealmind.persistence.RepositoryException;
+import com.mealmind.profile.UserProfile;
 import com.mealmind.shopping.ShoppingListGenerator;
+import com.mealmind.validation.ConstraintValidator;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,11 +22,13 @@ import java.util.function.Consumer;
 
 /**
  * Holds the shared model objects for one MealMind session: the pantry, recipe book, current meal
- * plan, command history and shopping-list generator, plus the clock and data directory. The CLI (and
+ * plan, command history, shopping-list generator, user profile and constraint validator, plus the
+ * clock and data directory. The CLI (and
  * later the GUI and the agent facade) work through this one object instead of creating their own.
  *
- * <p><strong>Persistence:</strong> the pantry is loaded from {@code <dataDir>/pantry.json} and saved
- * back after every change by an observer on the pantry (the Observer pattern used for persistence).
+ * <p><strong>Persistence:</strong> the pantry and the profile are loaded from
+ * {@code <dataDir>/pantry.json} and {@code <dataDir>/profile.json} and saved back after every change
+ * by an observer on each (the Observer pattern used for persistence).
  * A failed save is reported through the warning sink and never stops the session. Recipes come from
  * the bundled sample data. The meal plan and recipe-book changes (such as scaling) are kept in memory
  * only; saving them is deferred to a later commit.
@@ -35,31 +40,36 @@ public final class ApplicationContext {
 
     private static final int DEFAULT_PLAN_DAYS = 7;
     private static final String PANTRY_FILE = "pantry.json";
+    private static final String PROFILE_FILE = "profile.json";
 
     private final Clock clock;
     private final Path dataDir;
     private final Pantry pantry;
     private final RecipeBook recipeBook;
     private final CommandHistory history;
+    private final UserProfile profile;
+    private final ConstraintValidator validator;
     private MealPlan plan;
     private ShoppingListGenerator generator;
     private Consumer<String> warningSink = System.err::println;
 
-    private ApplicationContext(Clock clock, Path dataDir, Pantry pantry, RecipeBook recipeBook) {
+    private ApplicationContext(Clock clock, Path dataDir, Pantry pantry, RecipeBook recipeBook, UserProfile profile) {
         this.clock = clock;
         this.dataDir = dataDir;
         this.pantry = pantry;
         this.recipeBook = recipeBook;
+        this.profile = profile;
+        this.validator = new ConstraintValidator(profile);
         this.history = new CommandHistory();
         this.plan = new MealPlan(PLAN_NAME, DEFAULT_PLAN_DAYS);
         this.generator = new ShoppingListGenerator(plan, pantry);
     }
 
     /**
-     * Creates a session: makes {@code dataDir} if needed, loads the sample recipes and the saved
-     * pantry (a missing pantry file means an empty pantry), creates an empty 7-day plan, the command
-     * history and the shopping-list generator, and only then starts autosaving the pantry, so loading
-     * never triggers a save.
+     * Creates a session: makes {@code dataDir} if needed, loads the sample recipes, the saved pantry
+     * and the saved profile (missing files mean an empty pantry and a default profile), creates an
+     * empty 7-day plan, the command history, the shopping-list generator and the validator, and only
+     * then starts autosaving the pantry and the profile, so loading never triggers a save.
      *
      * @param dataDir where user data is stored
      * @param clock   the clock used for "today" (expiry checks)
@@ -82,17 +92,23 @@ public final class ApplicationContext {
         for (PantryItem item : PantryRepository.load(dataDir.resolve(PANTRY_FILE))) {
             pantry.replaceItem(item);
         }
+        UserProfile profile = new UserProfile();
+        profile.applyData(ProfileRepository.load(dataDir.resolve(PROFILE_FILE)));
 
-        ApplicationContext context = new ApplicationContext(clock, dataDir, pantry, recipeBook);
-        pantry.addObserver(event -> context.savePantry());
+        ApplicationContext context = new ApplicationContext(clock, dataDir, pantry, recipeBook, profile);
+        pantry.addObserver(event -> context.saveSafely("pantry",
+                () -> PantryRepository.save(context.pantryFile(), pantry.getItems())));
+        profile.addObserver(event -> context.saveSafely("profile",
+                () -> ProfileRepository.save(context.profileFile(), profile.toData())));
         return context;
     }
 
-    private void savePantry() {
+    /** Runs an autosave; a failure is reported through the warning sink instead of being thrown. */
+    private void saveSafely(String what, Runnable save) {
         try {
-            PantryRepository.save(pantryFile(), pantry.getItems());
+            save.run();
         } catch (RepositoryException e) {
-            warningSink.accept("Warning: pantry changes were not saved. " + e.getMessage());
+            warningSink.accept("Warning: " + what + " changes were not saved. " + e.getMessage());
         }
     }
 
@@ -162,6 +178,33 @@ public final class ApplicationContext {
      */
     public Path pantryFile() {
         return dataDir.resolve(PANTRY_FILE);
+    }
+
+    /**
+     * Returns the file the profile is saved to.
+     *
+     * @return {@code <dataDir>/profile.json}
+     */
+    public Path profileFile() {
+        return dataDir.resolve(PROFILE_FILE);
+    }
+
+    /**
+     * Returns the user's dietary profile.
+     *
+     * @return the profile
+     */
+    public UserProfile profile() {
+        return profile;
+    }
+
+    /**
+     * Returns the validator that checks meals and plans against {@link #profile()}.
+     *
+     * @return the validator
+     */
+    public ConstraintValidator validator() {
+        return validator;
     }
 
     /**

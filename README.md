@@ -74,7 +74,7 @@ Start the interactive command line from the project root:
 ```bash
 mvn -q exec:java
 ```
-Your pantry is saved automatically to `data/pantry.json` (gitignored). To keep data somewhere else, set `MEALMIND_DATA_DIR`:
+Your pantry and dietary profile are saved automatically to `data/pantry.json` and `data/profile.json` (gitignored). To keep data somewhere else, set `MEALMIND_DATA_DIR`:
 ```bash
 MEALMIND_DATA_DIR=/path/to/my-data mvn -q exec:java
 ```
@@ -92,6 +92,11 @@ The meal plan and any recipe scaling are kept in memory for the session only; te
 | `plan set <day> <slot> <recipeId> [--servings <n>]` | `plan set 1 dinner R101 --servings 3` |
 | `plan clear <day> <slot>` | `plan clear 1 dinner` |
 | `plan show` | `plan show` |
+| `plan check` | `plan check` |
+| `profile show` | `profile show` |
+| `profile diet <omnivore\|vegetarian\|vegan\|pescatarian>` | `profile diet vegetarian` |
+| `profile allergy add\|remove "<name>"` | `profile allergy add "tree nuts"` |
+| `profile update [--calories n] [--protein g] [--carbs g] [--fat g] [--budget n] [--servings n]` | `profile update --calories 2000 --budget 100` (use `none` to clear a value) |
 | `shopping list` | `shopping list` |
 | `shopping export --format txt [--file <path>]` | `shopping export --format txt --file shopping.txt` |
 | `undo` / `redo` | `undo` |
@@ -121,6 +126,22 @@ Undone: Replace Day 1 DINNER with Chicken Stir-Fry
 mealmind> exit
 ```
 (Lines starting with `[update]` are printed whenever the shopping list changes.)
+
+#### Dietary profile and safety checks
+Set your diet, allergens and optional daily targets with the `profile` commands. Before `plan set` adds a meal, MealMind checks it against your profile: a meal containing a listed allergen or a food your diet excludes is **refused** and the plan is left unchanged. Calorie, macro and budget targets only produce warnings. `plan check` reviews the whole plan, and `recipe show` ends with a profile check line.
+```
+mealmind> profile diet vegetarian
+Diet set to Vegetarian.
+mealmind> profile allergy add peanut
+Allergen added: peanut
+mealmind> plan set 1 dinner R101
+Refused: Chicken breast is not allowed for a vegetarian diet (contains chicken)
+mealmind> plan set 1 dinner R103
+Day 1 Dinner: Red Lentil Soup (4 servings)
+mealmind> plan check
+Plan is safe and within your targets.
+```
+The safety check is a conservative **keyword heuristic on ingredient names**. It cannot see hidden ingredients (for example dairy inside a sauce) and is not medical advice. Profile changes are settings and are not undoable with `undo`. Describing your diet in free text (for example `profile set --text "..."`) arrives with the AI commands in a later commit.
 
 The AI agent commands (recipe generation, plan generation, natural-language edits) arrive in a later commit, and the JavaFX GUI after that.
 

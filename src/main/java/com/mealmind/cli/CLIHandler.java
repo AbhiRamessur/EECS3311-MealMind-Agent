@@ -19,6 +19,8 @@ import com.mealmind.pantry.PantryItem;
 import com.mealmind.persistence.RepositoryException;
 import com.mealmind.shopping.ShoppingListFormatter;
 import com.mealmind.shopping.ShoppingListGenerator;
+import com.mealmind.validation.ValidationResult;
+import com.mealmind.validation.Violation;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -42,6 +44,10 @@ import java.util.stream.Collectors;
  *
  * <p>Errors are printed as one line ({@code "Error: ..."} or {@code "Usage: ..."}) and the session
  * continues; stack traces are never shown.
+ *
+ * <p>Profile commands (F01) are handled by {@link ProfileCommands}. Before {@code plan set} changes
+ * the plan, the new meal is checked by the {@code ConstraintValidator}: an allergen or diet conflict
+ * refuses the change (Stage 1 F06 rule), and target/budget advisories are printed as warnings.
  */
 public final class CLIHandler {
 
@@ -53,7 +59,7 @@ public final class CLIHandler {
     private static final String RECIPE_USAGE = "recipe list|show|scale ...";
     private static final String RECIPE_SHOW_USAGE = "recipe show <id>";
     private static final String RECIPE_SCALE_USAGE = "recipe scale --id <id> --servings <n>";
-    private static final String PLAN_USAGE = "plan new|set|clear|show ...";
+    private static final String PLAN_USAGE = "plan new|set|clear|show|check ...";
     private static final String PLAN_NEW_USAGE = "plan new --days <n>";
     private static final String PLAN_SET_USAGE = "plan set <day> <slot> <recipeId> [--servings <n>]";
     private static final String PLAN_CLEAR_USAGE = "plan clear <day> <slot>";
@@ -67,6 +73,7 @@ public final class CLIHandler {
     private final BufferedReader in;
     private final PrintStream out;
     private final CLIConsoleView view;
+    private final ProfileCommands profileCommands;
     private ShoppingListGenerator watchedGenerator;
 
     /**
@@ -82,6 +89,7 @@ public final class CLIHandler {
         this.in = Objects.requireNonNull(in, "in");
         this.out = Objects.requireNonNull(out, "out");
         this.view = new CLIConsoleView(out);
+        this.profileCommands = new ProfileCommands(ctx.profile(), out);
         watch(ctx.generator());
     }
 
@@ -146,6 +154,7 @@ public final class CLIHandler {
             case "help" -> help();
             case "exit", "quit" -> { }
             case "pantry" -> pantry(args);
+            case "profile" -> profileCommands.handle(args);
             case "recipe" -> recipe(args);
             case "plan" -> plan(args);
             case "shopping" -> shopping(args);
@@ -176,6 +185,11 @@ public final class CLIHandler {
         out.println("  " + PLAN_SET_USAGE + "   (slot: breakfast, lunch, dinner, snack)");
         out.println("  " + PLAN_CLEAR_USAGE);
         out.println("  plan show");
+        out.println("  plan check");
+        out.println("  profile show");
+        out.println("  " + ProfileCommands.DIET_USAGE);
+        out.println("  " + ProfileCommands.ALLERGY_USAGE);
+        out.println("  " + ProfileCommands.UPDATE_USAGE);
         out.println("  shopping list");
         out.println("  " + SHOPPING_EXPORT_USAGE);
         out.println("  undo");
@@ -296,6 +310,11 @@ public final class CLIHandler {
         for (int i = 0; i < steps.size(); i++) {
             out.println("  " + (i + 1) + ". " + steps.get(i));
         }
+        List<Violation> problems = ctx.validator().validateAgainstBlacklists(recipe).getSafetyViolations();
+        if (problems.isEmpty()) {
+            out.println("Profile check: OK");
+        }
+        problems.forEach(problem -> out.println("Profile check: " + problem.message()));
     }
 
     private void printPerServingAndIngredients(Recipe recipe) {
@@ -330,6 +349,7 @@ public final class CLIHandler {
             case "set" -> planSet(rest);
             case "clear" -> planClear(rest);
             case "show" -> planShow();
+            case "check" -> planCheck();
             default -> throw new UsageException(PLAN_USAGE);
         }
     }
@@ -354,8 +374,16 @@ public final class CLIHandler {
         // Labelled with the recipe name so undo/redo descriptions read "Replace Day 1 DINNER with <recipe>".
         Meal meal = new Meal(type, recipe.getName(), List.of(recipe));
 
+        // Stage 1 F06 rule: a safety violation aborts the edit and leaves the plan untouched.
+        List<Violation> unsafe = ctx.validator().validateAgainstBlacklists(meal).getSafetyViolations();
+        if (!unsafe.isEmpty()) {
+            unsafe.forEach(violation -> out.println("Refused: " + violation.message()));
+            return;
+        }
         ctx.history().pushAndExecute(new ReplaceMealCommand(ctx.plan(), day, type, meal));
         out.println("Day " + day + " " + type.getDisplayName() + ": " + describe(meal));
+        ctx.validator().validateMacrosAndAllergens(ctx.plan()).getAdvisories()
+                .forEach(advisory -> out.println("Warning: " + advisory.message()));
     }
 
     private void planClear(List<String> args) {
@@ -378,6 +406,23 @@ public final class CLIHandler {
             }
         }
         out.println("Plan totals: " + CliFormat.nutrition(plan, 1));
+        printViolations(ctx.validator().validateMacrosAndAllergens(plan));
+    }
+
+    private void planCheck() {
+        ValidationResult result = ctx.validator().validateMacrosAndAllergens(ctx.plan());
+        if (result.isClean()) {
+            out.println("Plan is safe and within your targets.");
+            return;
+        }
+        printViolations(result);
+        out.println("Summary: " + result.summary());
+    }
+
+    /** Prints each violation as "SAFETY: ..." or "Advisory: ...". */
+    private void printViolations(ValidationResult result) {
+        result.getSafetyViolations().forEach(v -> out.println("SAFETY: " + v.message()));
+        result.getAdvisories().forEach(v -> out.println("Advisory: " + v.message()));
     }
 
     /**
