@@ -42,7 +42,7 @@ Open `.env` and replace `YOUR_LOCAL_API_KEY_HERE` with your own OpenAI key on th
 |---|---|---|
 | `LLM_PROVIDER` | `openai` | `openai` or `ollama` (case-insensitive) |
 | `LLM_API_KEY` | _(none)_ | OpenAI API key; required only for `openai` |
-| `LLM_MODEL` | `gpt-4o` | Model name sent to the provider |
+| `LLM_MODEL` | `gpt-4o` for openai, `llama3` for ollama | Optional model name sent to the provider |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Local Ollama server |
 | `LLM_TIMEOUT_SECONDS` | `30` | LLM request timeout (positive integer) |
 
@@ -50,9 +50,8 @@ Open `.env` and replace `YOUR_LOCAL_API_KEY_HERE` with your own OpenAI key on th
 Install Ollama, pull a model (for example `ollama pull llama3`), then in `.env` set:
 ```
 LLM_PROVIDER=ollama
-LLM_MODEL=llama3
 ```
-`LLM_API_KEY` can be left as the placeholder or removed.
+The model defaults to `llama3`. `LLM_API_KEY` can be left as the placeholder or removed.
 
 ### 3. Build and run the tests
 ```bash
@@ -145,17 +144,30 @@ The safety check is a conservative **keyword heuristic on ingredient names**. It
 
 The AI agent commands (recipe generation, plan generation, natural-language edits) arrive in a later commit, and the JavaFX GUI after that.
 
+#### Tool layer
+The AI agent (added in the next commit) will see the app only through five **read-only** tools. You can call them yourself with `tools list`, `tools schema` and `tools call <name> [json]`, with no AI configured. Everything after the tool name is the JSON arguments, typed as-is.
+
+| Tool | Arguments | Example |
+|---|---|---|
+| `pantry_query` | `ingredient` or `expiringWithinDays` (0–60), both optional | `tools call pantry_query {"expiringWithinDays": 3}` |
+| `recipe_search` | `id`, or any of `query`, `maxPrepMinutes`, `maxCaloriesPerServing`, `pantryFirst`, `limit` (1–10) | `tools call recipe_search {"query": "lentil", "pantryFirst": true}` |
+| `check_safety` | `recipeIds` (1–10 ids, required) | `tools call check_safety {"recipeIds": ["R101", "R103"]}` |
+| `plan_show` | none | `tools call plan_show` |
+| `shopping_list` | none | `tools call shopping_list` |
+
+Tools never change your data. `recipe_search` never shows a recipe that conflicts with your diet or allergens; it only reports how many were hidden (`excludedForSafety`). `check_safety` explains why a recipe is not allowed.
+
 ### AI configuration
 MealMind works without any AI provider: pantry, recipes, scaling, plans, profile checks and the shopping list are all deterministic. If AI is not configured, the CLI prints one line at startup ("AI features are disabled: …") and carries on. Startup never contacts the network.
 
 **OpenAI (primary, default model `gpt-4o`)**
 1. `cp .env.example .env` (Windows: `copy .env.example .env`).
 2. In `.env`, replace `YOUR_LOCAL_API_KEY_HERE` with your own key on the `LLM_API_KEY` line.
-3. Optionally change `LLM_MODEL`.
+3. Optionally uncomment `LLM_MODEL` to choose another OpenAI model.
 
 **Ollama (local, no key needed, default model `llama3`)**
 1. Install Ollama from <https://ollama.com> and run `ollama pull llama3`.
-2. In `.env`, set `LLM_PROVIDER=ollama` and change `LLM_MODEL` to an Ollama model (for example `llama3`) or delete that line.
+2. In `.env`, set `LLM_PROVIDER=ollama`. The model defaults to `llama3`; uncomment `LLM_MODEL` only to use a different Ollama model.
 3. `OLLAMA_BASE_URL` defaults to `http://localhost:11434`.
 
 **Checking the setup from the CLI**

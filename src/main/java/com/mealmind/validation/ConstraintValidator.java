@@ -115,8 +115,9 @@ public final class ConstraintValidator {
         profile.getWeeklyBudget().ifPresent(budget -> {
             double allowed = budget * plan.getNumberOfDays() / DAYS_PER_WEEK;
             if (plan.getCost() > allowed + EPSILON) {
-                advisories.add(advisory(ViolationType.BUDGET, "Plan", "Plan cost $" + format(plan.getCost())
-                        + " is above your budget of $" + format(allowed) + " for " + plan.getNumberOfDays() + " days"));
+                advisories.add(advisory(ViolationType.BUDGET, "Plan", "Plan cost $" + money(plan.getCost())
+                        + " is above your budget of $" + money(allowed) + " (weekly budget prorated to "
+                        + plan.getNumberOfDays() + " days)"));
             }
         });
         return validateAgainstBlacklists(plan).merge(new ValidationResult(advisories));
@@ -154,6 +155,11 @@ public final class ConstraintValidator {
     /** At most one decimal, without a trailing ".0" (e.g. 2450, 87.5). */
     private static String format(double value) {
         return BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
+    }
+
+    /** Money with exactly 2 decimals, e.g. 30.01 or 30.00. */
+    private static String money(double value) {
+        return String.format(Locale.ROOT, "%.2f", value);
     }
 
     /**

@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mealmind.app.ApplicationContext;
 import com.mealmind.llm.LLMClient;
 import com.mealmind.llm.LlmErrorKind;
@@ -501,5 +503,72 @@ class CLIHandlerTest {
         String help = run("help");
         assertContains(help, "llm status");
         assertContains(help, "llm ping");
+    }
+
+    // ---- tools commands (deterministic tool layer, no AI) ----
+
+    @Test
+    void toolsListAndSchema() throws Exception {
+        String list = run("tools list");
+        for (String name : new String[] {"check_safety(", "pantry_query(", "plan_show(", "recipe_search(", "shopping_list("}) {
+            assertContains(list, name);
+        }
+        assertEquals(10, list.lines().count());
+
+        String schema = run("tools schema");
+        JsonNode parsed = new ObjectMapper().readTree(schema);
+        assertEquals(5, parsed.size());
+        assertContains(schema, "\"recipe_search\"");
+    }
+
+    @Test
+    void toolsCallPantryQueryReflectsPantry() {
+        assertContains(run("tools call pantry_query"), "\"count\" : 0");
+
+        run("pantry add Rice 500 g");
+
+        String result = run("tools call pantry_query {\"ingredient\": \"rice\"}");
+        assertContains(result, "\"inPantry\" : true");
+        assertContains(result, "\"quantity\" : 500.0");
+    }
+
+    @Test
+    void toolsCallRecipeSearchWithArguments() {
+        String result = run("tools call recipe_search {\"query\":\"lentil\",\"pantryFirst\":true}");
+
+        assertContains(result, "\"id\" : \"R103\"");
+        assertContains(result, "\"excludedForSafety\" : 0");
+    }
+
+    @Test
+    void vegetarianProfileHidesMeatRecipeFromSearch() {
+        assertContains(run("tools call recipe_search {\"query\":\"chicken\"}"), "\"id\" : \"R101\"");
+
+        run("profile diet vegetarian");
+
+        String result = run("tools call recipe_search {\"query\":\"chicken\"}");
+        assertFalse(result.contains("R101"));
+        assertContains(result, "\"excludedForSafety\" : 1");
+    }
+
+    @Test
+    void toolsCallErrors() {
+        assertContains(run("tools call recipe_search {not json"), "Error: arguments must be a JSON object");
+        assertContains(run("tools call recipe_search [1, 2]"), "Error: arguments must be a JSON object");
+        assertContains(run("tools call nope"),
+                "Error: Unknown tool 'nope'. Available tools: check_safety, pantry_query, plan_show, recipe_search, shopping_list");
+        assertContains(run("tools call check_safety"), "Error: Missing required argument 'recipeIds'");
+        assertContains(run("tools frobnicate"), "Usage: tools list | tools schema | tools call <name> [json]");
+        assertContains(run("tools"), "Usage: tools list");
+        assertContains(run("tools call"), "Usage: tools list");
+    }
+
+    @Test
+    void helpListsToolsCommands() {
+        String help = run("help");
+
+        assertContains(help, "tools list");
+        assertContains(help, "tools schema");
+        assertContains(help, "tools call <name> [json]");
     }
 }

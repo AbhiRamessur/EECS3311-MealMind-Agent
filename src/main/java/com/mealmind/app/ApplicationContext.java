@@ -1,5 +1,6 @@
 package com.mealmind.app;
 
+import com.mealmind.agent.AgentMemory;
 import com.mealmind.command.CommandHistory;
 import com.mealmind.llm.LlmService;
 import com.mealmind.model.MealPlan;
@@ -12,6 +13,12 @@ import com.mealmind.persistence.RecipeRepository;
 import com.mealmind.persistence.RepositoryException;
 import com.mealmind.profile.UserProfile;
 import com.mealmind.shopping.ShoppingListGenerator;
+import com.mealmind.tools.ConstraintCheckTool;
+import com.mealmind.tools.PantryTool;
+import com.mealmind.tools.PlanTool;
+import com.mealmind.tools.RecipeSearchTool;
+import com.mealmind.tools.ShoppingListTool;
+import com.mealmind.tools.ToolManager;
 import com.mealmind.validation.ConstraintValidator;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,8 +30,9 @@ import java.util.function.Consumer;
 
 /**
  * Holds the shared model objects for one MealMind session: the pantry, recipe book, current meal
- * plan, command history, shopping-list generator, user profile, constraint validator and AI service,
- * plus the clock and data directory. The AI service starts unavailable; {@code Main} configures it. The CLI (and
+ * plan, command history, shopping-list generator, user profile, constraint validator, AI service,
+ * the agent's read-only tools and its session memory, plus the clock and data directory. The AI
+ * service starts unavailable; {@code Main} configures it. The CLI (and
  * later the GUI and the agent facade) work through this one object instead of creating their own.
  *
  * <p><strong>Persistence:</strong> the pantry and the profile are loaded from
@@ -51,6 +59,8 @@ public final class ApplicationContext {
     private final UserProfile profile;
     private final ConstraintValidator validator;
     private final LlmService llm = new LlmService();
+    private final AgentMemory memory = new AgentMemory();
+    private final ToolManager tools = new ToolManager();
     private MealPlan plan;
     private ShoppingListGenerator generator;
     private Consumer<String> warningSink = System.err::println;
@@ -65,6 +75,19 @@ public final class ApplicationContext {
         this.history = new CommandHistory();
         this.plan = new MealPlan(PLAN_NAME, DEFAULT_PLAN_DAYS);
         this.generator = new ShoppingListGenerator(plan, pantry);
+        registerTools();
+    }
+
+    /**
+     * Registers the five read-only agent tools. The plan and shopping-list tools read the CURRENT plan
+     * and generator through suppliers, so they keep working after {@link #newPlan} replaces them.
+     */
+    private void registerTools() {
+        tools.register(new PantryTool(pantry, clock));
+        tools.register(new RecipeSearchTool(recipeBook, pantry, validator));
+        tools.register(new ConstraintCheckTool(recipeBook, validator));
+        tools.register(new PlanTool(() -> plan));
+        tools.register(new ShoppingListTool(() -> generator.getCurrent()));
     }
 
     /**
@@ -217,6 +240,24 @@ public final class ApplicationContext {
      */
     public LlmService llm() {
         return llm;
+    }
+
+    /**
+     * Returns the agent's tools (pantry_query, recipe_search, check_safety, plan_show, shopping_list).
+     *
+     * @return the tool manager
+     */
+    public ToolManager tools() {
+        return tools;
+    }
+
+    /**
+     * Returns the agent's session memory (conversation window and facts), empty at startup.
+     *
+     * @return the memory
+     */
+    public AgentMemory memory() {
+        return memory;
     }
 
     /**

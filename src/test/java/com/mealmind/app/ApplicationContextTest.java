@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mealmind.command.AddPantryItemCommand;
 import com.mealmind.model.Meal;
 import com.mealmind.model.MealPlan;
@@ -13,6 +14,9 @@ import com.mealmind.pantry.PantryItem;
 import com.mealmind.profile.DietType;
 import com.mealmind.shopping.ShoppingList;
 import com.mealmind.shopping.ShoppingListGenerator;
+import com.mealmind.tools.ToolCall;
+import com.mealmind.tools.ToolResult;
+import com.mealmind.tools.ToolSpec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -168,5 +172,26 @@ class ApplicationContextTest {
         assertEquals(Path.of("custom-dir"), ApplicationContext.defaultDataDir(Map.of("MEALMIND_DATA_DIR", "custom-dir")));
         assertEquals(Path.of("data"), ApplicationContext.defaultDataDir(Map.of()));
         assertEquals(Path.of("data"), ApplicationContext.defaultDataDir(Map.of("MEALMIND_DATA_DIR", "  ")));
+    }
+
+    @Test
+    void toolsAndMemoryAreWiredAndFollowNewPlan() throws Exception {
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK);
+        ObjectMapper json = new ObjectMapper();
+
+        assertEquals(List.of("check_safety", "pantry_query", "plan_show", "recipe_search", "shopping_list"),
+                ctx.tools().specs().stream().map(ToolSpec::name).toList());
+        assertEquals(0, ctx.memory().size());
+        assertEquals(List.of(), ctx.memory().facts());
+
+        ctx.newPlan(3);
+        ctx.plan().setMeal(1, MealType.DINNER, recipeMeal(ctx, "R101"));
+
+        ToolResult plan = ctx.tools().execute(
+                new ToolCall("plan_show", json.createObjectNode()));
+        assertEquals(3, json.readTree(plan.json()).get("days").asInt());
+        ToolResult list = ctx.tools().execute(
+                new ToolCall("shopping_list", json.createObjectNode()));
+        assertEquals(7, json.readTree(list.json()).get("count").asInt());
     }
 }

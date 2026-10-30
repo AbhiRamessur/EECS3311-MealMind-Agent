@@ -289,7 +289,19 @@ class ConstraintValidatorTest {
         MealPlan over = planWithDay1(food("Steak", 100, 0, 0, 0, 31.50));
         Violation budget = validator.validateMacrosAndAllergens(over).getAdvisories().get(0);
         assertEquals("Plan", budget.subject());
-        assertEquals("Plan cost $31.5 is above your budget of $30 for 3 days", budget.message());
+        assertEquals("Plan cost $31.50 is above your budget of $30.00 (weekly budget prorated to 3 days)",
+                budget.message());
+    }
+
+    @Test
+    void budgetMessageShowsCentsWhenOneCentOver() {
+        profile.setWeeklyBudget(70.0); // 3-day plan: allowed 30.00
+
+        Violation budget = validator.validateMacrosAndAllergens(planWithDay1(food("Steak", 100, 0, 0, 0, 30.01)))
+                .getAdvisories().get(0);
+
+        assertEquals("Plan cost $30.01 is above your budget of $30.00 (weekly budget prorated to 3 days)",
+                budget.message());
     }
 
     @Test

@@ -50,7 +50,8 @@ import java.util.stream.Collectors;
  * <p>Profile commands (F01) are handled by {@link ProfileCommands}. Before {@code plan set} changes
  * the plan, the new meal is checked by the {@code ConstraintValidator}: an allergen or diet conflict
  * refuses the change (Stage 1 F06 rule), and target/budget advisories are printed as warnings.
- * The {@code llm} commands are handled by {@link LlmCommands}.
+ * The {@code llm} commands are handled by {@link LlmCommands}, and the {@code tools} commands (a
+ * developer and demo aid for the agent's read-only tools) by {@link ToolCommands}.
  */
 public final class CLIHandler {
 
@@ -78,6 +79,7 @@ public final class CLIHandler {
     private final CLIConsoleView view;
     private final ProfileCommands profileCommands;
     private final LlmCommands llmCommands;
+    private final ToolCommands toolCommands;
     private ShoppingListGenerator watchedGenerator;
 
     /**
@@ -95,6 +97,7 @@ public final class CLIHandler {
         this.view = new CLIConsoleView(out);
         this.profileCommands = new ProfileCommands(ctx.profile(), out);
         this.llmCommands = new LlmCommands(ctx.llm(), out);
+        this.toolCommands = new ToolCommands(ctx.tools(), out);
         watch(ctx.generator());
     }
 
@@ -142,6 +145,12 @@ public final class CLIHandler {
      */
     public void handleLine(String line) {
         try {
+            // 'tools' takes raw JSON, which the tokenizer would break, so it gets the untokenized rest of the line.
+            String[] head = line.strip().split("\\s+", 2);
+            if (head[0].equalsIgnoreCase("tools")) {
+                toolCommands.handle(head.length > 1 ? head[1] : "");
+                return;
+            }
             List<String> tokens = CommandLineTokenizer.tokenize(line);
             if (!tokens.isEmpty()) {
                 dispatch(tokens.get(0).toLowerCase(Locale.ROOT), tokens.subList(1, tokens.size()));
@@ -199,6 +208,9 @@ public final class CLIHandler {
         out.println("  " + ProfileCommands.UPDATE_USAGE);
         out.println("  llm status");
         out.println("  llm ping   (sends one tiny request to the configured AI provider)");
+        out.println("  tools list");
+        out.println("  tools schema");
+        out.println("  tools call <name> [json]   (runs one read-only agent tool, e.g. tools call pantry_query {})");
         out.println("  shopping list");
         out.println("  " + SHOPPING_EXPORT_USAGE);
         out.println("  undo");
