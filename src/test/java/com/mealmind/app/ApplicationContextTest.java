@@ -2,6 +2,7 @@ package com.mealmind.app;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,6 +24,8 @@ import com.mealmind.model.Unit;
 import com.mealmind.pantry.PantryItem;
 import com.mealmind.persistence.RecipeRepository;
 import com.mealmind.persistence.RepositoryException;
+import com.mealmind.planning.PlanRequest;
+import com.mealmind.planning.PlanResult;
 import com.mealmind.profile.DietType;
 import com.mealmind.shopping.ShoppingList;
 import com.mealmind.shopping.ShoppingListGenerator;
@@ -410,5 +413,34 @@ class ApplicationContextTest {
         reloaded.llm().useClient(new OneRecipeClient("Lime Rice"));
 
         assertEquals("AI002", reloaded.agent().generateRecipe("again", null).recipe().getId());
+    }
+
+    // ---- Commit 13: rule-based planning ----
+
+    @Test
+    void plannerUsesSharedStateAndNeverTouchesTheCurrentPlan() {
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK);
+        MealPlan current = ctx.plan();
+        ctx.profile().addAllergen("peanut");
+
+        PlanResult result = ctx.planner().generate(PlanRequest.defaults());
+
+        assertSame(ctx.planner(), ctx.planner());
+        assertSame(current, ctx.plan());
+        assertEquals(28, ctx.plan().getEmptySlots().size());
+        assertEquals(14, result.plan().getEmptySlots().size());
+        assertFalse(result.plan().getRecipes().stream().anyMatch(r -> r.getId().equals("R109")));
+        assertTrue(result.validation().isSafe());
+    }
+
+    @Test
+    void plannerSkipsRecipesTheUserRatedLow() {
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK);
+        ctx.preferences().rate("R101", 1);
+
+        PlanResult result = ctx.planner().generate(PlanRequest.defaults());
+
+        assertTrue(result.notes().contains("Excluded 1 recipe(s) you rated 1-2 stars."));
+        assertFalse(result.plan().getRecipes().stream().anyMatch(r -> r.getId().equals("R101")));
     }
 }

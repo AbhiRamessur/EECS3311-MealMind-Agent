@@ -16,6 +16,7 @@ import com.mealmind.persistence.PreferencesRepository;
 import com.mealmind.persistence.ProfileRepository;
 import com.mealmind.persistence.RecipeRepository;
 import com.mealmind.persistence.RepositoryException;
+import com.mealmind.planning.RulePlanner;
 import com.mealmind.preferences.RecipePreferences;
 import com.mealmind.profile.UserProfile;
 import com.mealmind.shopping.ShoppingListGenerator;
@@ -77,6 +78,7 @@ public final class ApplicationContext {
     private final AgentFacade agent;
     private final RecipePreferences preferences;
     private final Set<String> bundledIds;
+    private final RulePlanner planner;
     private MealPlan plan;
     private ShoppingListGenerator generator;
     private Consumer<String> warningSink = System.err::println;
@@ -99,6 +101,7 @@ public final class ApplicationContext {
         registerTools();
         this.agent = new AgentFacade(llm, tools, memory, validator, profile, recipeBook, AgentLimits.defaults(),
                 () -> PreferenceNotes.build(preferences, recipeBook));
+        this.planner = new RulePlanner(recipeBook, pantry, validator, preferences, profile);
     }
 
     /**
@@ -411,6 +414,16 @@ public final class ApplicationContext {
      */
     public MealPlan plan() {
         return plan;
+    }
+
+    /**
+     * Returns the rule-based plan generator (F05 offline fallback). It builds detached plans from the
+     * shared recipe book, pantry, validator and preferences and never changes {@link #plan()} itself.
+     *
+     * @return the planner
+     */
+    public RulePlanner planner() {
+        return planner;
     }
 
     /**

@@ -3,12 +3,12 @@ package com.mealmind.tools;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.mealmind.model.IncompatibleUnitException;
 import com.mealmind.model.Ingredient;
 import com.mealmind.model.Names;
 import com.mealmind.model.Recipe;
 import com.mealmind.model.RecipeBook;
 import com.mealmind.pantry.Pantry;
+import com.mealmind.planning.PantryCoverage;
 import com.mealmind.preferences.RecipePreferences;
 import com.mealmind.validation.ConstraintValidator;
 import java.util.ArrayList;
@@ -28,6 +28,7 @@ import java.util.Optional;
  *
  * <p><strong>Pantry coverage:</strong> an ingredient is covered when the pantry holds at least the
  * required quantity in a compatible unit (incompatible units count as not covered). Expiry is ignored.
+ * The rule lives in {@link PantryCoverage}, shared with the Pantry-First planning strategy.
  * The {@code query} filter is a simple case-insensitive substring match on the recipe name and its
  * ingredient names. Read-only.
  *
@@ -57,10 +58,6 @@ public final class RecipeSearchTool implements Tool {
     private final ConstraintValidator validator;
     /** The user's ratings and favourites, or null when this tool was built without them. */
     private final RecipePreferences preferences;
-
-    /** Pantry coverage of one recipe. */
-    private record Coverage(int percent, List<String> missing) {
-    }
 
     /**
      * Creates the tool.
@@ -204,7 +201,7 @@ public final class RecipeSearchTool implements Tool {
     }
 
     private ObjectNode addNutritionAndCoverage(ObjectNode node, Recipe recipe) {
-        Coverage coverage = coverage(recipe);
+        PantryCoverage.Result coverage = coverage(recipe);
         node.set("perServing", ToolJson.nutrition(recipe, recipe.getServings()));
         node.put("pantryCoveragePercent", coverage.percent());
         ArrayNode missing = node.putArray("missingIngredients");
@@ -221,23 +218,7 @@ public final class RecipeSearchTool implements Tool {
         return node;
     }
 
-    private Coverage coverage(Recipe recipe) {
-        List<String> missing = new ArrayList<>();
-        for (Ingredient ingredient : recipe.getIngredients()) {
-            if (!isCovered(ingredient)) {
-                missing.add(ingredient.getName());
-            }
-        }
-        int total = recipe.getIngredients().size();
-        int percent = (int) Math.round((total - missing.size()) * 100.0 / total);
-        return new Coverage(percent, missing);
-    }
-
-    private boolean isCovered(Ingredient ingredient) {
-        try {
-            return pantry.availableQuantity(ingredient.getName(), ingredient.getUnit()) >= ingredient.getQuantity() - EPSILON;
-        } catch (IncompatibleUnitException e) {
-            return false;
-        }
+    private PantryCoverage.Result coverage(Recipe recipe) {
+        return PantryCoverage.of(recipe, pantry);
     }
 }

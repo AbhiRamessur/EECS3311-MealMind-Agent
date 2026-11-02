@@ -96,6 +96,8 @@ The meal plan is kept in memory for the session only. The ten sample recipes (R1
 | `plan clear <day> <slot>` | `plan clear 1 dinner` |
 | `plan show` | `plan show` |
 | `plan check` | `plan check` |
+| `plan generate [--days n] [--strategy id] [--slots lunch,dinner] [--budget n] [--replace]` | `plan generate --days 5 --strategy budget --budget 60` |
+| `plan strategies` | `plan strategies` |
 | `profile show` | `profile show` |
 | `profile diet <omnivore\|vegetarian\|vegan\|pescatarian>` | `profile diet vegetarian` |
 | `profile allergy add\|remove "<name>"` | `profile allergy add "tree nuts"` |
@@ -193,6 +195,27 @@ Limitations:
 - Removing a recipe drops its rating and favorite flag, and `undo` brings the recipe back but **not** its rating.
 - A saved AI recipe keeps its AI-estimated nutrition and cost.
 - Scaling a saved recipe (`recipe scale`) changes the saved copy permanently; bundled recipes always reload at their original servings.
+
+#### Rule-based plan generation
+`plan generate` fills a whole plan from the recipe book in one step. It is deterministic, works offline and uses **no AI** (it is the Stage 1 "local rule-based fallback generator"). `plan strategies` lists the strategies:
+- `pantry-first` (default): prefers recipes the pantry already covers, then fewer missing ingredients.
+- `budget`: prefers the lowest cost per serving.
+- `high-protein`: prefers the most protein per serving.
+
+Defaults: 7 days, `pantry-first`, lunch and dinner, no budget. Only recipes that are safe for your profile are used; recipes you rated 1-2 stars are skipped while others are available; each recipe is used once before any repeats; ties go to favorites, then higher ratings. Meals are scaled to your household servings. `--budget` is for the whole plan and only adds a note.
+```
+mealmind> plan generate --days 3 --strategy high-protein --slots lunch,dinner --budget 40
+Generated 3-day plan using High-Protein (rule-based, no AI)
+Strategy: High-Protein (rule-based, no AI)
+Plan cost $... is within your budget of $40.00
+Use 'plan show' or 'shopping list'.
+```
+If the current plan already has meals, add `--replace`. Generating replaces the whole plan and clears the undo history, so it **cannot be undone**; edits made afterwards with `plan set` / `plan clear` can.
+
+Limitations:
+- Recipes have no meal-type tags, so a breakfast slot may get any safe recipe (for example a soup).
+- Pantry use is not simulated across meals: every recipe is scored against the pantry as it is now.
+- The AI planner (free-text requests) comes in a later commit.
 
 ### AI configuration
 MealMind works without any AI provider: pantry, recipes, scaling, plans, profile checks and the shopping list are all deterministic. If AI is not configured, the CLI prints one line at startup ("AI features are disabled: …") and carries on. Startup never contacts the network.

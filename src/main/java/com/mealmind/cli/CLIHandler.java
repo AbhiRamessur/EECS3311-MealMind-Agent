@@ -68,7 +68,7 @@ public final class CLIHandler {
     private static final String RECIPE_LIST_USAGE = "recipe list [--favorites]";
     private static final String RECIPE_SHOW_USAGE = "recipe show <id>";
     private static final String RECIPE_SCALE_USAGE = "recipe scale --id <id> --servings <n>";
-    private static final String PLAN_USAGE = "plan new|set|clear|show|check ...";
+    private static final String PLAN_USAGE = "plan new|set|clear|show|check|generate|strategies ...";
     private static final String PLAN_NEW_USAGE = "plan new --days <n>";
     private static final String PLAN_SET_USAGE = "plan set <day> <slot> <recipeId> [--servings <n>]";
     private static final String PLAN_CLEAR_USAGE = "plan clear <day> <slot>";
@@ -87,6 +87,7 @@ public final class CLIHandler {
     private final ToolCommands toolCommands;
     private final AgentCommands agentCommands;
     private final PreferenceCommands preferenceCommands;
+    private final PlanGenerationCommands planGenerationCommands;
     private ShoppingListGenerator watchedGenerator;
 
     /**
@@ -108,6 +109,7 @@ public final class CLIHandler {
         this.agentCommands = new AgentCommands(ctx.agent(), ctx.memory(),
                 () -> PreferenceNotes.build(ctx.preferences(), ctx.recipeBook()), out);
         this.preferenceCommands = new PreferenceCommands(ctx, out);
+        this.planGenerationCommands = new PlanGenerationCommands(ctx, () -> watch(ctx.generator()), out);
         watch(ctx.generator());
     }
 
@@ -213,6 +215,9 @@ public final class CLIHandler {
         out.println("  " + PLAN_CLEAR_USAGE);
         out.println("  plan show");
         out.println("  plan check");
+        out.println("  " + PlanGenerationCommands.GENERATE_USAGE);
+        out.println("      (rule-based, no AI; --replace overwrites a plan that has meals and cannot be undone)");
+        out.println("  plan strategies");
         out.println("  profile show");
         out.println("  " + ProfileCommands.DIET_USAGE);
         out.println("  " + ProfileCommands.ALLERGY_USAGE);
@@ -415,6 +420,8 @@ public final class CLIHandler {
             case "clear" -> planClear(rest);
             case "show" -> planShow();
             case "check" -> planCheck();
+            case "generate" -> planGenerationCommands.generate(rest);
+            case "strategies" -> planGenerationCommands.strategies(rest);
             default -> throw new UsageException(PLAN_USAGE);
         }
     }

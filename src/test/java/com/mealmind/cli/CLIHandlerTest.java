@@ -902,4 +902,174 @@ class CLIHandlerTest {
         assertContains(result, "\"rating\" : 4");
         assertContains(result, "\"favorite\" : false");
     }
+
+    // ---- Commit 13: rule-based plan generation ----
+
+    @Test
+    void planStrategiesListsEachStrategyWithItsFirstSentence() {
+        List<String> lines = run("plan strategies").lines().toList();
+
+        assertEquals(3, lines.size(), lines.toString());
+        assertTrue(lines.get(0).startsWith("pantry-first  Pantry-First"), lines.get(0));
+        assertTrue(lines.get(0).endsWith("Prefer recipes that use ingredients already in the pantry."), lines.get(0));
+        assertTrue(lines.get(1).startsWith("budget        Budget-Conscious"), lines.get(1));
+        assertTrue(lines.get(2).startsWith("high-protein  High-Protein"), lines.get(2));
+        assertContains(run("plan strategies now"), "Usage: plan strategies");
+    }
+
+    @Test
+    void planGenerateWithDefaultsFillsSevenDaysOfLunchAndDinner() {
+        String output = run("plan generate");
+
+        List<String> lines = output.lines().toList();
+        assertEquals("Generated 7-day plan using Pantry-First (rule-based, no AI)", lines.get(0));
+        assertEquals("Strategy: Pantry-First (rule-based, no AI)", lines.get(1));
+        assertEquals("Use 'plan show' or 'shopping list'.", lines.get(lines.size() - 1));
+        assertContains(output, "Pool has only 10 safe recipe(s); recipes repeat.");
+        assertFalse(output.contains("[update]"), output);
+        assertFalse(output.contains("SAFETY"), output);
+        assertEquals(7, ctx.plan().getNumberOfDays());
+        assertEquals(14, ctx.plan().getEmptySlots().size());
+        assertTrue(ctx.plan().getMeal(1, MealType.LUNCH).isPresent());
+        assertTrue(ctx.plan().getMeal(1, MealType.BREAKFAST).isEmpty());
+        assertContains(run("pantry add Rice 500 g"), "[update]");
+    }
+
+    @Test
+    void planGenerateWithOptionsAndBudget() {
+        String output = run("plan generate --days 2 --strategy HIGH-PROTEIN --slots breakfast,dinner --budget 1");
+
+        assertContains(output, "Generated 2-day plan using High-Protein (rule-based, no AI)");
+        assertContains(output, "exceeds your budget of $1.00");
+        assertEquals(2, ctx.plan().getNumberOfDays());
+        assertTrue(ctx.plan().getMeal(2, MealType.BREAKFAST).isPresent());
+        assertTrue(ctx.plan().getMeal(2, MealType.LUNCH).isEmpty());
+        assertFalse(run("shopping list").isBlank());
+        assertContains(run("plan generate --replace --days 1 --strategy budget --budget 1000"),
+                "is within your budget of $1000.00");
+    }
+
+    @Test
+    void planGenerateRefusesToOverwriteMealsWithoutReplace() {
+        run("plan set 1 dinner R101");
+
+        String output = run("plan generate");
+
+        assertEquals(List.of("Error: the current plan already has meals. Use --replace to overwrite it (this cannot be undone)."),
+                output.lines().toList());
+        assertEquals(27, ctx.plan().getEmptySlots().size());
+        assertTrue(ctx.history().canUndo());
+    }
+
+    @Test
+    void planGenerateReplaceOverwritesAndClearsUndoHistory() {
+        run("plan set 1 breakfast R101");
+
+        assertContains(run("plan generate --REPLACE --days 3"), "Generated 3-day plan");
+
+        assertEquals(3, ctx.plan().getNumberOfDays());
+        assertTrue(ctx.plan().getMeal(1, MealType.BREAKFAST).isEmpty());
+        assertContains(run("undo"), "Nothing to undo.");
+        assertContains(run("plan clear 1 lunch"), "Cleared Day 1 Lunch.");
+        assertContains(run("undo"), "Undone:");
+    }
+
+    @Test
+    void planGenerateFailureLeavesTheCurrentPlanUntouched() {
+        run("plan set 1 dinner R101");
+        List.copyOf(ctx.recipeBook().getAll()).forEach(r -> ctx.recipeBook().remove(r.getId()));
+
+        String output = run("plan generate --replace");
+
+        assertContains(output, "Error: No recipes in the recipe book are safe for this profile");
+        assertTrue(ctx.plan().getMeal(1, MealType.DINNER).isPresent());
+        assertTrue(ctx.history().canUndo());
+    }
+
+    @Test
+    void planGenerateUsageAndValueErrors() {
+        String usage = "Usage: plan generate [--days <n>] [--strategy <id>] [--slots lunch,dinner] [--budget <n>] [--replace]";
+        for (String bad : new String[] {"plan generate --slots lunch,,dinner", "plan generate --slots lunch,LUNCH",
+                "plan generate --slots breakfast,lunch,dinner,snack,lunch", "plan generate --replace --replace",
+                "plan generate extra", "plan generate --days x", "plan generate --budget lots", "plan generate --days",
+                "plan generate --ai yes"}) {
+            assertContains(run(bad), usage);
+        }
+        assertContains(run("plan generate --strategy keto"),
+                "Error: Unknown strategy 'keto'. Available: pantry-first, budget, high-protein");
+        assertContains(run("plan generate --days 9"), "Error: Days must be between 1 and 7, got 9");
+        assertContains(run("plan generate --budget 0"), "Error: Budget must be a number above 0, got 0.0");
+        assertContains(run("plan generate --slots brunch"), "Error: Unknown meal type 'brunch'");
+        assertEquals(28, ctx.plan().getEmptySlots().size());
+    }
+
+    @Test
+    void helpAndPlanUsageMentionGeneration() {
+        assertContains(run("help"), "plan generate [--days <n>] [--strategy <id>] [--slots lunch,dinner] [--budget <n>] [--replace]");
+        assertContains(run("help"), "plan strategies");
+        assertContains(run("plan"), "Usage: plan new|set|clear|show|check|generate|strategies ...");
+    }
+
+    private static long filledSlots(String planShow) {
+        return planShow.lines().filter(l -> l.matches("  (Breakfast|Lunch|Dinner|Snack): .*") && !l.endsWith("(empty)")).count();
+    }
+
+    @Test
+    void planShowListsFourteenFilledSlotsAfterDefaultGeneration() {
+        assertContains(run("plan generate"), "(rule-based, no AI)");
+
+        String show = run("plan show");
+        assertContains(show, "Weekly Plan (7 days)");
+        assertEquals(14, filledSlots(show), show);
+    }
+
+    @Test
+    void planGenerateWithThreeDaysOfBudgetLunches() {
+        assertContains(run("plan generate --days 3 --strategy budget --slots lunch"),
+                "Generated 3-day plan using Budget-Conscious (rule-based, no AI)");
+
+        assertEquals(3, filledSlots(run("plan show")));
+        assertTrue(ctx.plan().getMeal(3, MealType.LUNCH).isPresent());
+        assertTrue(ctx.plan().getMeal(3, MealType.DINNER).isEmpty());
+    }
+
+    @Test
+    void invalidOptionsLeaveAGeneratedPlanUntouched() {
+        run("plan generate --days 2");
+        String before = run("plan show");
+
+        assertContains(run("plan generate --replace --strategy keto"), "Error: Unknown strategy 'keto'");
+        assertContains(run("plan generate --replace --days 0"), "Error: Days must be between 1 and 7, got 0");
+        assertContains(run("plan generate --replace --slots brunch"), "Error: Unknown meal type 'brunch'");
+        assertContains(run("plan generate --replace --slots dinner,dinner"), "Usage: plan generate");
+        assertContains(run("plan generate --replace --budget abc"), "Usage: plan generate");
+        assertContains(run("plan generate"), "Error: the current plan already has meals.");
+
+        assertEquals(before, run("plan show"));
+    }
+
+    @Test
+    void vegetarianProfileGetsASafePlanWithoutMeat() {
+        run("profile diet vegetarian");
+
+        run("plan generate --days 7 --slots breakfast,lunch,dinner,snack");
+
+        String show = run("plan show");
+        for (String meat : new String[] {"Chicken Stir-Fry", "Spaghetti Bolognese", "Lemon Salmon"}) {
+            assertFalse(show.contains(meat), meat);
+        }
+        assertContains(run("plan check"), "Plan is safe");
+    }
+
+    @Test
+    void shoppingListIsUpdatedAfterGeneration() {
+        String before = run("shopping list");
+
+        run("plan generate --days 1 --slots dinner");
+
+        String after = run("shopping list");
+        assertFalse(before.equals(after), after);
+        assertEquals(ShoppingListFormatter.toText(ctx.generator().getCurrent()), after);
+        assertFalse(ctx.generator().getCurrent().getItems().isEmpty());
+    }
 }
