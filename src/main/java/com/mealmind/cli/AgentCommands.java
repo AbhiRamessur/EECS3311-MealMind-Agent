@@ -1,5 +1,6 @@
 package com.mealmind.cli;
 
+import com.mealmind.agent.AgentEventType;
 import com.mealmind.agent.AgentFacade;
 import com.mealmind.agent.AgentMemory;
 import com.mealmind.agent.GeneratedRecipe;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * The AI agent commands: {@code recipe generate/pending/discard} (F04) and {@code memory}. They only
@@ -24,23 +26,32 @@ final class AgentCommands {
 
     private final AgentFacade agent;
     private final AgentMemory memory;
+    private final Supplier<List<String>> ratingNotes;
     private final PrintStream out;
 
-    AgentCommands(AgentFacade agent, AgentMemory memory, PrintStream out) {
+    AgentCommands(AgentFacade agent, AgentMemory memory, Supplier<List<String>> ratingNotes, PrintStream out) {
         this.agent = Objects.requireNonNull(agent, "agent");
         this.memory = Objects.requireNonNull(memory, "memory");
+        this.ratingNotes = Objects.requireNonNull(ratingNotes, "ratingNotes");
         this.out = Objects.requireNonNull(out, "out");
     }
 
     // ---- recipes ----
 
-    /** {@code recipe generate <words...>}: activity is printed live as "[agent] ..." lines. */
+    /**
+     * {@code recipe generate <words...>}: activity is printed live as "[agent] ..." lines. ERROR events
+     * are not printed, because the error itself is printed once as "Error: ..." by the handler.
+     */
     void generate(List<String> words) {
         if (words.isEmpty()) {
             throw new UsageException(GENERATE_USAGE);
         }
         GeneratedRecipe result = agent.generateRecipe(String.join(" ", words),
-                event -> out.println("[agent] " + event.message()));
+                event -> {
+                    if (event.type() != AgentEventType.ERROR) {
+                        out.println("[agent] " + event.message());
+                    }
+                });
         printPreview(result);
         out.println("Agent: " + result.llmCalls() + " model calls, " + result.toolSteps() + " tool calls, "
                 + result.repairs() + " repairs, " + result.safetyRetries() + " safety retries; tokens: "
@@ -132,5 +143,12 @@ final class AgentCommands {
             out.println((i + 1) + ". " + facts.get(i));
         }
         out.println("Conversation messages: " + memory.size());
+        List<String> notes = ratingNotes.get();
+        if (notes.isEmpty()) {
+            out.println("No rating history yet.");
+            return;
+        }
+        out.println("Derived from your ratings:");
+        notes.forEach(note -> out.println("  " + note));
     }
 }

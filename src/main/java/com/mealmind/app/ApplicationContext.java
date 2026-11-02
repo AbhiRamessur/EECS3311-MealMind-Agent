@@ -3,16 +3,20 @@ package com.mealmind.app;
 import com.mealmind.agent.AgentFacade;
 import com.mealmind.agent.AgentLimits;
 import com.mealmind.agent.AgentMemory;
+import com.mealmind.agent.PreferenceNotes;
 import com.mealmind.command.CommandHistory;
 import com.mealmind.llm.LlmService;
 import com.mealmind.model.MealPlan;
+import com.mealmind.model.Recipe;
 import com.mealmind.model.RecipeBook;
 import com.mealmind.pantry.Pantry;
 import com.mealmind.pantry.PantryItem;
 import com.mealmind.persistence.PantryRepository;
+import com.mealmind.persistence.PreferencesRepository;
 import com.mealmind.persistence.ProfileRepository;
 import com.mealmind.persistence.RecipeRepository;
 import com.mealmind.persistence.RepositoryException;
+import com.mealmind.preferences.RecipePreferences;
 import com.mealmind.profile.UserProfile;
 import com.mealmind.shopping.ShoppingListGenerator;
 import com.mealmind.tools.ConstraintCheckTool;
@@ -26,24 +30,28 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
  * Holds the shared model objects for one MealMind session: the pantry, recipe book, current meal
  * plan, command history, shopping-list generator, user profile, constraint validator, AI service,
- * the agent's read-only tools, its session memory and the {@link AgentFacade} for AI features, plus
- * the clock and data directory. The AI
- * service starts unavailable; {@code Main} configures it. The CLI (and
- * later the GUI and the agent facade) work through this one object instead of creating their own.
+ * the agent's read-only tools, its session memory, the recipe ratings and favourites, and the
+ * {@link AgentFacade} for AI features, plus the clock and data directory. The AI service starts
+ * unavailable; {@code Main} configures it. The CLI (and later the GUI) work through this one object.
  *
- * <p><strong>Persistence:</strong> the pantry and the profile are loaded from
- * {@code <dataDir>/pantry.json} and {@code <dataDir>/profile.json} and saved back after every change
- * by an observer on each (the Observer pattern used for persistence).
- * A failed save is reported through the warning sink and never stops the session. Recipes come from
- * the bundled sample data. The meal plan and recipe-book changes (such as scaling) are kept in memory
- * only; saving them is deferred to a later commit.
+ * <p><strong>Persistence:</strong> {@code <dataDir>} holds {@code pantry.json}, {@code profile.json},
+ * {@code user-recipes.json} (recipes the user saved; bundled sample recipes are never written there)
+ * and {@code ratings.json}. Everything is loaded first; only then are autosave observers attached, so
+ * loading never triggers a save. A failed save is reported through the warning sink and never stops
+ * the session; a corrupt file stops startup with a {@link RepositoryException} and is never
+ * overwritten. The meal plan is kept in memory only.
+ *
+ * <p>Known limitation: scaling a <em>saved</em> recipe replaces it in the book and is therefore
+ * persisted, while bundled recipes always reload at their original servings.
  */
 public final class ApplicationContext {
 
@@ -53,6 +61,8 @@ public final class ApplicationContext {
     private static final int DEFAULT_PLAN_DAYS = 7;
     private static final String PANTRY_FILE = "pantry.json";
     private static final String PROFILE_FILE = "profile.json";
+    private static final String USER_RECIPES_FILE = "user-recipes.json";
+    private static final String RATINGS_FILE = "ratings.json";
 
     private final Clock clock;
     private final Path dataDir;
@@ -65,11 +75,18 @@ public final class ApplicationContext {
     private final AgentMemory memory = new AgentMemory();
     private final ToolManager tools = new ToolManager();
     private final AgentFacade agent;
+    private final RecipePreferences preferences;
+    private final Set<String> bundledIds;
     private MealPlan plan;
     private ShoppingListGenerator generator;
     private Consumer<String> warningSink = System.err::println;
 
-    private ApplicationContext(Clock clock, Path dataDir, Pantry pantry, RecipeBook recipeBook, UserProfile profile) {
+    private ApplicationContext(Clock clock, Path dataDir, Pantry pantry, RecipeBook recipeBook, UserProfile profile,
+                               Set<String> bundledIds, Consumer<String> warningSink) {
+        this.bundledIds = Set.copyOf(bundledIds);
+        this.warningSink = warningSink;
+        // Created first so its pruning observer runs before the recipe-book autosave observer.
+        this.preferences = new RecipePreferences(recipeBook);
         this.clock = clock;
         this.dataDir = dataDir;
         this.pantry = pantry;
@@ -80,7 +97,8 @@ public final class ApplicationContext {
         this.plan = new MealPlan(PLAN_NAME, DEFAULT_PLAN_DAYS);
         this.generator = new ShoppingListGenerator(plan, pantry);
         registerTools();
-        this.agent = new AgentFacade(llm, tools, memory, validator, profile, recipeBook, AgentLimits.defaults());
+        this.agent = new AgentFacade(llm, tools, memory, validator, profile, recipeBook, AgentLimits.defaults(),
+                () -> PreferenceNotes.build(preferences, recipeBook));
     }
 
     /**
@@ -89,17 +107,15 @@ public final class ApplicationContext {
      */
     private void registerTools() {
         tools.register(new PantryTool(pantry, clock));
-        tools.register(new RecipeSearchTool(recipeBook, pantry, validator));
+        tools.register(new RecipeSearchTool(recipeBook, pantry, validator, preferences));
         tools.register(new ConstraintCheckTool(recipeBook, validator));
         tools.register(new PlanTool(() -> plan));
         tools.register(new ShoppingListTool(() -> generator.getCurrent()));
     }
 
     /**
-     * Creates a session: makes {@code dataDir} if needed, loads the sample recipes, the saved pantry
-     * and the saved profile (missing files mean an empty pantry and a default profile), creates an
-     * empty 7-day plan, the command history, the shopping-list generator and the validator, and only
-     * then starts autosaving the pantry and the profile, so loading never triggers a save.
+     * Creates a session, reporting warnings to standard error. See
+     * {@link #create(Path, Clock, Consumer)}.
      *
      * @param dataDir where user data is stored
      * @param clock   the clock used for "today" (expiry checks)
@@ -108,8 +124,27 @@ public final class ApplicationContext {
      * @throws NullPointerException if an argument is null
      */
     public static ApplicationContext create(Path dataDir, Clock clock) {
+        return create(dataDir, clock, System.err::println);
+    }
+
+    /**
+     * Creates a session: makes {@code dataDir} if needed; loads the bundled sample recipes, then the
+     * user's saved recipes, the pantry, the profile and the ratings (missing files mean none); creates
+     * the plan, history, generator, validator, tools and agent; and only then starts autosaving, so
+     * loading never triggers a save. Ratings for recipes that no longer exist are dropped with a warning.
+     *
+     * @param dataDir     where user data is stored
+     * @param clock       the clock used for "today" (expiry checks)
+     * @param warningSink receives non-fatal warnings (dropped ratings, failed saves)
+     * @return the new context
+     * @throws RepositoryException if the data directory cannot be created or saved data is invalid,
+     *                             including a saved recipe that reuses a bundled recipe id
+     * @throws NullPointerException if an argument is null
+     */
+    public static ApplicationContext create(Path dataDir, Clock clock, Consumer<String> warningSink) {
         Objects.requireNonNull(dataDir, "dataDir");
         Objects.requireNonNull(clock, "clock");
+        Objects.requireNonNull(warningSink, "warningSink");
         try {
             Files.createDirectories(dataDir);
         } catch (IOException e) {
@@ -118,6 +153,8 @@ public final class ApplicationContext {
 
         RecipeBook recipeBook = new RecipeBook();
         RecipeRepository.loadFromResource(RecipeRepository.SAMPLE_RECIPES).forEach(recipeBook::put);
+        Set<String> bundledIds = Set.copyOf(recipeBook.getAll().stream().map(Recipe::getId).toList());
+        loadUserRecipes(dataDir.resolve(USER_RECIPES_FILE), recipeBook, bundledIds);
         Pantry pantry = new Pantry();
         for (PantryItem item : PantryRepository.load(dataDir.resolve(PANTRY_FILE))) {
             pantry.replaceItem(item);
@@ -125,12 +162,50 @@ public final class ApplicationContext {
         UserProfile profile = new UserProfile();
         profile.applyData(ProfileRepository.load(dataDir.resolve(PROFILE_FILE)));
 
-        ApplicationContext context = new ApplicationContext(clock, dataDir, pantry, recipeBook, profile);
+        ApplicationContext context = new ApplicationContext(clock, dataDir, pantry, recipeBook, profile, bundledIds,
+                warningSink);
+        List<String> dropped = context.preferences.applyData(PreferencesRepository.load(context.ratingsFile()));
+        if (!dropped.isEmpty()) {
+            warningSink.accept("Ignored ratings for unknown recipes: " + String.join(", ", dropped));
+        }
+
         pantry.addObserver(event -> context.saveSafely("pantry",
                 () -> PantryRepository.save(context.pantryFile(), pantry.getItems())));
         profile.addObserver(event -> context.saveSafely("profile",
                 () -> ProfileRepository.save(context.profileFile(), profile.toData())));
+        recipeBook.addObserver(event -> context.saveSafely("recipe", context::saveUserRecipes));
+        context.preferences.addObserver(event -> context.saveSafely("ratings",
+                () -> PreferencesRepository.save(context.ratingsFile(), context.preferences.toData())));
         return context;
+    }
+
+    /** Adds the saved user recipes; one that reuses a bundled id is an error. */
+    private static void loadUserRecipes(Path file, RecipeBook recipeBook, Set<String> bundledIds) {
+        if (!Files.exists(file)) {
+            return;
+        }
+        for (Recipe recipe : RecipeRepository.loadFromFile(file)) {
+            if (bundledIds.contains(recipe.getId())) {
+                throw new RepositoryException(file + ": recipe " + recipe.getId()
+                        + " uses the id of a bundled sample recipe");
+            }
+            recipeBook.put(recipe);
+        }
+    }
+
+    /** Writes the non-bundled recipes, or deletes the file when there are none (an empty list is not valid). */
+    private void saveUserRecipes() {
+        List<Recipe> userRecipes = recipeBook.getAll().stream().filter(r -> !bundledIds.contains(r.getId())).toList();
+        Path file = userRecipesFile();
+        if (!userRecipes.isEmpty()) {
+            RecipeRepository.save(file, userRecipes);
+            return;
+        }
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            throw new RepositoryException("Could not delete " + file + ": " + e.getMessage(), e);
+        }
     }
 
     /** Runs an autosave; a failure is reported through the warning sink instead of being thrown. */
@@ -208,6 +283,43 @@ public final class ApplicationContext {
      */
     public Path pantryFile() {
         return dataDir.resolve(PANTRY_FILE);
+    }
+
+    /**
+     * Returns the file the saved user recipes are written to.
+     *
+     * @return {@code <dataDir>/user-recipes.json}
+     */
+    public Path userRecipesFile() {
+        return dataDir.resolve(USER_RECIPES_FILE);
+    }
+
+    /**
+     * Returns the file ratings and favourites are written to.
+     *
+     * @return {@code <dataDir>/ratings.json}
+     */
+    public Path ratingsFile() {
+        return dataDir.resolve(RATINGS_FILE);
+    }
+
+    /**
+     * Returns the recipe ratings and favourites.
+     *
+     * @return the preferences
+     */
+    public RecipePreferences preferences() {
+        return preferences;
+    }
+
+    /**
+     * Returns whether a recipe is one of the bundled sample recipes (which cannot be removed).
+     *
+     * @param id the recipe id
+     * @return {@code true} for a bundled recipe
+     */
+    public boolean isBundledRecipe(String id) {
+        return bundledIds.contains(Objects.requireNonNull(id, "id").trim());
     }
 
     /**

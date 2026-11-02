@@ -73,19 +73,23 @@ Start the interactive command line from the project root:
 ```bash
 mvn -q exec:java
 ```
-Your pantry and dietary profile are saved automatically to `data/pantry.json` and `data/profile.json` (gitignored). To keep data somewhere else, set `MEALMIND_DATA_DIR`:
+Your data is saved automatically in the `data/` directory (gitignored): `pantry.json`, `profile.json`, `user-recipes.json` (recipes you saved) and `ratings.json` (ratings and favorites). To keep data somewhere else, set `MEALMIND_DATA_DIR`:
 ```bash
 MEALMIND_DATA_DIR=/path/to/my-data mvn -q exec:java
 ```
-The meal plan and any recipe scaling are kept in memory for the session only; ten sample recipes (R101–R110) are always available. The sample recipes are demo data with approximate nutrition and prices.
+The meal plan is kept in memory for the session only. The ten sample recipes (R101–R110) are always available and always reload at their original servings; they are demo data with approximate nutrition and prices.
 
 | Command | Example |
 |---|---|
 | `pantry add "<name>" <qty> <unit> [expiry yyyy-MM-dd]` | `pantry add "Chicken Breast" 500 g 2026-11-10` |
 | `pantry list` | `pantry list` |
 | `pantry remove "<name>"` | `pantry remove "Chicken Breast"` |
-| `recipe list` | `recipe list` |
+| `recipe list [--favorites]` | `recipe list --favorites` |
 | `recipe show <id>` | `recipe show R101` |
+| `recipe rate --id <id> --stars <1-5\|none>` | `recipe rate --id R103 --stars 5` |
+| `recipe favorite --id <id>` | `recipe favorite --id R103` |
+| `recipe unfavorite --id <id>` | `recipe unfavorite --id R103` |
+| `recipe remove <id>` | `recipe remove AI001` (saved recipes only) |
 | `recipe scale --id <id> --servings <n>` | `recipe scale --id R101 --servings 4` |
 | `plan new --days <n>` | `plan new --days 5` |
 | `plan set <day> <slot> <recipeId> [--servings <n>]` | `plan set 1 dinner R101 --servings 3` |
@@ -164,6 +168,7 @@ Tools never change your data. `recipe_search` never shows a recipe that conflict
 |---|---|
 | `recipe generate <what you want>` | `recipe generate high protein vegan pasta for two` |
 | `recipe pending` | `recipe pending` (shows the last generated recipe and its safety status) |
+| `recipe save` | `recipe save` (keeps the pending recipe; `undo` removes it again) |
 | `recipe discard` | `recipe discard` |
 | `memory show` | `memory show` (preferences the agent will take into account) |
 | `memory remember "<fact>"` | `memory remember "I dislike cilantro"` |
@@ -173,9 +178,21 @@ Tools never change your data. `recipe_search` never shows a recipe that conflict
 Limitations:
 - Nutrition and cost values in generated recipes are **AI estimates**, checked only for plausibility (calories must roughly match the protein, carbs and fat). There is no nutrition database.
 - The safety check is a keyword heuristic on ingredient names. It cannot see hidden ingredients and is **not medical advice**.
-- Generated recipes **cannot be saved yet**: the recipe stays pending until you generate another or discard it. Saving arrives in a later commit.
+- A generated recipe is never saved automatically. `recipe save` keeps it only if it passes the safety check again against your **current** profile; an unsafe recipe can never be saved.
 - Results depend on the model you configure.
 - Each generation makes several paid API calls. Use an API key with a low spending limit, and check the token totals with `llm status`.
+
+#### Ratings, favorites and saved recipes
+Rate any recipe from 1 to 5 (`recipe rate --id R103 --stars 5`, or `--stars none` to clear) and mark favorites (`recipe favorite --id R103`). `recipe list` shows each rating as `4/5` (or `-`) and `fav` at the end of the line, `recipe list --favorites` shows only favorites, and `recipe show` prints your rating. Ratings are saved in `ratings.json`.
+
+To keep an AI recipe: `recipe generate ...`, check it with `recipe pending`, then `recipe save`. It gets an id such as `AI001`, is written to `user-recipes.json`, and can be rated like any other recipe. `undo` right after saving removes it again; `recipe remove AI001` deletes a saved recipe later (the bundled samples cannot be removed).
+
+Your ratings also steer the AI: the next `recipe generate` prompt includes the **names** of recipes you rated highly or poorly and your favorites, labeled as data and used only as a taste hint (see them with `memory show`). The `recipe_search` tool reports each recipe's `rating` and `favorite` flag.
+
+Limitations:
+- Removing a recipe drops its rating and favorite flag, and `undo` brings the recipe back but **not** its rating.
+- A saved AI recipe keeps its AI-estimated nutrition and cost.
+- Scaling a saved recipe (`recipe scale`) changes the saved copy permanently; bundled recipes always reload at their original servings.
 
 ### AI configuration
 MealMind works without any AI provider: pantry, recipes, scaling, plans, profile checks and the shopping list are all deterministic. If AI is not configured, the CLI prints one line at startup ("AI features are disabled: …") and carries on. Startup never contacts the network.

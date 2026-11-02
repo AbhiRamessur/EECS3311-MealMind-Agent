@@ -9,12 +9,14 @@ import com.mealmind.model.Names;
 import com.mealmind.model.Recipe;
 import com.mealmind.model.RecipeBook;
 import com.mealmind.pantry.Pantry;
+import com.mealmind.preferences.RecipePreferences;
 import com.mealmind.validation.ConstraintValidator;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * {@code recipe_search}: finds recipes, or returns one recipe's full details by id (F03, deterministic part).
@@ -28,6 +30,10 @@ import java.util.Objects;
  * required quantity in a compatible unit (incompatible units count as not covered). Expiry is ignored.
  * The {@code query} filter is a simple case-insensitive substring match on the recipe name and its
  * ingredient names. Read-only.
+ *
+ * <p>When built with {@link RecipePreferences} (F12), every result also carries the user's
+ * {@code rating} (or null) and {@code favorite} flag, and {@code favoritesOnly} limits a search to
+ * favourites. Unsafe recipes stay hidden even when they are favourites.
  */
 public final class RecipeSearchTool implements Tool {
 
@@ -43,11 +49,14 @@ public final class RecipeSearchTool implements Tool {
                     ToolParam.optional("maxPrepMinutes", ParamType.INTEGER, "Maximum preparation time in minutes (0 or more)"),
                     ToolParam.optional("maxCaloriesPerServing", ParamType.INTEGER, "Maximum calories per serving (1 or more)"),
                     ToolParam.optional("pantryFirst", ParamType.BOOLEAN, "Sort by how much of each recipe the pantry already covers"),
+                    ToolParam.optional("favoritesOnly", ParamType.BOOLEAN, "Only return recipes the user marked as favorites"),
                     ToolParam.optional("limit", ParamType.INTEGER, "Maximum results, 1 to " + MAX_LIMIT + " (default " + DEFAULT_LIMIT + ")")));
 
     private final RecipeBook recipeBook;
     private final Pantry pantry;
     private final ConstraintValidator validator;
+    /** The user's ratings and favourites, or null when this tool was built without them. */
+    private final RecipePreferences preferences;
 
     /** Pantry coverage of one recipe. */
     private record Coverage(int percent, List<String> missing) {
@@ -65,6 +74,25 @@ public final class RecipeSearchTool implements Tool {
         this.recipeBook = Objects.requireNonNull(recipeBook, "recipeBook");
         this.pantry = Objects.requireNonNull(pantry, "pantry");
         this.validator = Objects.requireNonNull(validator, "validator");
+        this.preferences = null;
+    }
+
+    /**
+     * Creates the tool with the user's ratings and favourites (F12): results also report
+     * {@code rating} and {@code favorite}, and {@code favoritesOnly} can filter the search.
+     *
+     * @param recipeBook  the recipes to search
+     * @param pantry      the pantry used for coverage
+     * @param validator   the safety check against the current profile
+     * @param preferences the user's ratings and favourites
+     * @throws NullPointerException if an argument is null
+     */
+    public RecipeSearchTool(RecipeBook recipeBook, Pantry pantry, ConstraintValidator validator,
+                            RecipePreferences preferences) {
+        this.recipeBook = Objects.requireNonNull(recipeBook, "recipeBook");
+        this.pantry = Objects.requireNonNull(pantry, "pantry");
+        this.validator = Objects.requireNonNull(validator, "validator");
+        this.preferences = Objects.requireNonNull(preferences, "preferences");
     }
 
     @Override
@@ -114,11 +142,15 @@ public final class RecipeSearchTool implements Tool {
         }
         String query = arguments.has("query") ? Names.normalize(arguments.get("query").asText()) : "";
         boolean pantryFirst = arguments.path("pantryFirst").asBoolean(false);
+        boolean favoritesOnly = arguments.path("favoritesOnly").asBoolean(false);
+        if (favoritesOnly && preferences == null) {
+            throw new IllegalArgumentException("Favorites are not available");
+        }
 
         List<Recipe> matches = new ArrayList<>();
         int excludedForSafety = 0;
         for (Recipe recipe : recipeBook.getAll()) {
-            if (!matchesFilters(recipe, query, arguments)) {
+            if (!matchesFilters(recipe, query, arguments) || (favoritesOnly && !preferences.isFavorite(recipe.getId()))) {
                 continue;
             }
             if (validator.isSafe(recipe)) {
@@ -177,6 +209,15 @@ public final class RecipeSearchTool implements Tool {
         node.put("pantryCoveragePercent", coverage.percent());
         ArrayNode missing = node.putArray("missingIngredients");
         coverage.missing().forEach(missing::add);
+        if (preferences != null) {
+            Optional<Integer> rating = preferences.getRating(recipe.getId());
+            if (rating.isPresent()) {
+                node.put("rating", rating.get());
+            } else {
+                node.putNull("rating");
+            }
+            node.put("favorite", preferences.isFavorite(recipe.getId()));
+        }
         return node;
     }
 

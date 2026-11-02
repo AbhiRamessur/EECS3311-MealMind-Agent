@@ -113,4 +113,15 @@ class MainTest {
         assertFalse(output().contains("disabled"), output());
         assertFalse(output().contains("Welcome"), output());
     }
+
+    @Test
+    void corruptRatingsFileReturnsOneAndIsNotOverwritten() throws Exception {
+        String corrupt = "{\"ratings\": {\"R101\": 9}}";
+        Files.writeString(dir.resolve("ratings.json"), corrupt);
+
+        assertEquals(1, run("exit\n"));
+
+        assertTrue(output().startsWith("Error: "), output());
+        assertEquals(corrupt, Files.readString(dir.resolve("ratings.json")));
+    }
 }

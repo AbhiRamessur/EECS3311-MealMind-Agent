@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +39,7 @@ public final class RecipeGenerator {
     private final ToolManager tools;
     private final AgentLimits limits;
     private final RecipeBook recipes;
+    private final Supplier<List<String>> ratingNotes;
 
     /** A checked draft; the run counters are added once the run is over. */
     private record Draft(Recipe recipe, ValidationResult validation) {
@@ -57,6 +59,25 @@ public final class RecipeGenerator {
      */
     public RecipeGenerator(AgentLoop loop, ConstraintValidator validator, UserProfile profile, AgentMemory memory,
                            ToolManager tools, AgentLimits limits, RecipeBook recipes) {
+        this(loop, validator, profile, memory, tools, limits, recipes, List::of);
+    }
+
+    /**
+     * Creates a generator whose prompts include the user's rating history (F12).
+     *
+     * @param loop        the agent loop
+     * @param validator   the safety check
+     * @param profile     the user's profile (for the prompt)
+     * @param memory      conversation history and preference notes
+     * @param tools       the tools (for the prompt)
+     * @param limits      the agent budgets (for the prompt)
+     * @param recipes     the recipe book, read only to choose an unused id
+     * @param ratingNotes supplies notes derived from ratings; called once per {@link #generate} call
+     * @throws NullPointerException if an argument is null
+     */
+    public RecipeGenerator(AgentLoop loop, ConstraintValidator validator, UserProfile profile, AgentMemory memory,
+                           ToolManager tools, AgentLimits limits, RecipeBook recipes, Supplier<List<String>> ratingNotes) {
+        this.ratingNotes = Objects.requireNonNull(ratingNotes, "ratingNotes");
         this.loop = Objects.requireNonNull(loop, "loop");
         this.validator = Objects.requireNonNull(validator, "validator");
         this.profile = Objects.requireNonNull(profile, "profile");
@@ -87,7 +108,8 @@ public final class RecipeGenerator {
         String id = nextId();
 
         List<ChatMessage> seed = new ArrayList<>();
-        seed.add(ChatMessage.system(PromptBuilder.recipeSystemPrompt(profile, memory.facts(), tools, limits)));
+        seed.add(ChatMessage.system(PromptBuilder.recipeSystemPrompt(profile, memory.facts(), tools, limits,
+                ratingNotes.get())));
         seed.addAll(recentHistory());
         seed.add(ChatMessage.user(prompt));
 

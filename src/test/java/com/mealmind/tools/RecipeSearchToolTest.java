@@ -14,6 +14,7 @@ import com.mealmind.model.Unit;
 import com.mealmind.pantry.Pantry;
 import com.mealmind.pantry.PantryItem;
 import com.mealmind.persistence.RecipeRepository;
+import com.mealmind.preferences.RecipePreferences;
 import com.mealmind.profile.DietType;
 import com.mealmind.profile.UserProfile;
 import com.mealmind.validation.ConstraintValidator;
@@ -195,5 +196,49 @@ class RecipeSearchToolTest {
 
         assertEquals(before, book.getAll());
         assertEquals(2, book.get("R101").orElseThrow().getServings());
+    }
+
+    // ---- ratings and favourites (F12) ----
+
+    @Test
+    void preferencesAddRatingAndFavoriteFields() {
+        RecipePreferences prefs = new RecipePreferences(book);
+        prefs.rate("R103", 5);
+        prefs.setFavorite("R103", true);
+        RecipeSearchTool withPrefs = new RecipeSearchTool(book, pantry, new ConstraintValidator(profile), prefs);
+
+        JsonNode lentil = ok(withPrefs, "{\"query\": \"lentil\"}").get("recipes").get(0);
+        assertEquals(5, lentil.get("rating").asInt());
+        assertTrue(lentil.get("favorite").asBoolean());
+
+        JsonNode stirFry = ok(withPrefs, "{\"id\": \"R101\"}");
+        assertTrue(stirFry.get("rating").isNull());
+        assertFalse(stirFry.get("favorite").asBoolean());
+    }
+
+    @Test
+    void favoritesOnlyFiltersAndStillHidesUnsafeRecipes() {
+        RecipePreferences prefs = new RecipePreferences(book);
+        prefs.setFavorite("R105", true);
+        prefs.setFavorite("R103", true);
+        prefs.setFavorite("R101", true);
+        RecipeSearchTool withPrefs = new RecipeSearchTool(book, pantry, new ConstraintValidator(profile), prefs);
+        assertEquals(List.of("R101", "R103", "R105"), ids(ok(withPrefs, "{\"favoritesOnly\": true}")));
+
+        profile.setDiet(DietType.VEGETARIAN);
+
+        JsonNode result = ok(withPrefs, "{\"favoritesOnly\": true}");
+        assertEquals(List.of("R103", "R105"), ids(result));
+        assertEquals(1, result.get("excludedForSafety").asInt());
+    }
+
+    @Test
+    void withoutPreferencesOutputIsUnchangedAndFavoritesAreUnavailable() {
+        JsonNode result = ok(tool, "{\"query\": \"lentil\"}");
+
+        assertFalse(result.get("recipes").get(0).has("rating"));
+        assertFalse(result.get("recipes").get(0).has("favorite"));
+        assertEquals("Favorites are not available", error(tool, "{\"favoritesOnly\": true}"));
+        assertEquals(3, ids(ok(tool, "{\"favoritesOnly\": false, \"maxPrepMinutes\": 10}")).size());
     }
 }

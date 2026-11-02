@@ -32,6 +32,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -241,5 +242,24 @@ class RecipeGeneratorTest {
 
         assertEquals(before, book.getAll());
         assertFalse(book.contains("AI001"));
+    }
+
+    @Test
+    void ratingNotesReachThePromptOncePerGeneration() {
+        AtomicInteger supplierCalls = new AtomicInteger();
+        AgentLimits limits = AgentLimits.defaults();
+        RecipeGenerator withNotes = new RecipeGenerator(new AgentLoop(client.service(), tools, limits), validator, profile,
+                memory, tools, limits, book, () -> {
+                    supplierCalls.incrementAndGet();
+                    return List.of("Recipes the user marked as favorites: Red Lentil Soup.");
+                });
+        client.reply("not json", recipe("Bowl", "Rice", "Beans"));
+
+        withNotes.generate("dinner", null);
+
+        assertEquals(1, supplierCalls.get());
+        assertEquals(2, client.requests.size());
+        assertTrue(client.requests.get(0).messages().get(0).content()
+                .endsWith("- Recipes the user marked as favorites: Red Lentil Soup.\n"));
     }
 }

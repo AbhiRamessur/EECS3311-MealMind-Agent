@@ -7,16 +7,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mealmind.command.AddPantryItemCommand;
+import com.mealmind.command.RemoveRecipeCommand;
+import com.mealmind.command.ScaleRecipeCommand;
 import com.mealmind.llm.LLMClient;
 import com.mealmind.llm.LlmErrorKind;
 import com.mealmind.llm.LlmException;
 import com.mealmind.llm.LlmRequest;
 import com.mealmind.llm.LlmResponse;
+import com.mealmind.llm.TokenUsage;
 import com.mealmind.model.Meal;
 import com.mealmind.model.MealPlan;
 import com.mealmind.model.MealType;
+import com.mealmind.model.Recipe;
 import com.mealmind.model.Unit;
 import com.mealmind.pantry.PantryItem;
+import com.mealmind.persistence.RecipeRepository;
+import com.mealmind.persistence.RepositoryException;
 import com.mealmind.profile.DietType;
 import com.mealmind.shopping.ShoppingList;
 import com.mealmind.shopping.ShoppingListGenerator;
@@ -230,5 +236,179 @@ class ApplicationContextTest {
         assertTrue(systemPrompt.contains("- Prefers spicy food"), systemPrompt);
         assertTrue(systemPrompt.contains("recipe_search("), systemPrompt);
         assertTrue(ctx.agent().pendingRecipe().isEmpty());
+    }
+
+    // ---- F12: saved recipes, ratings and favourites ----
+
+    /** A fake model that always answers with the same valid recipe draft. */
+    private static final class OneRecipeClient implements LLMClient {
+        private final String name;
+
+        OneRecipeClient(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String providerName() {
+            return "OneRecipe";
+        }
+
+        @Override
+        public String modelName() {
+            return "fake";
+        }
+
+        @Override
+        public LlmResponse complete(LlmRequest request) {
+            String ingredient = "{\"name\": \"Rice\", \"quantity\": 100, \"unit\": \"g\", \"calories\": 370, "
+                    + "\"proteinG\": 20, \"carbsG\": 50, \"fatG\": 10, \"cost\": 1.5}";
+            return new LlmResponse("{\"recipe\": {\"name\": \"" + name + "\", \"servings\": 2, \"prepMinutes\": 15, "
+                    + "\"ingredients\": [" + ingredient + ", " + ingredient.replace("Rice", "Lemon") + "], "
+                    + "\"instructions\": [\"Cook the rice.\", \"Add lemon.\"]}}", TokenUsage.ZERO, "fake");
+        }
+    }
+
+    private static ApplicationContext withSavedRecipe(Path dir, List<String> warnings, String name) {
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK, warnings::add);
+        ctx.llm().useClient(new OneRecipeClient(name));
+        ctx.agent().generateRecipe("something", null);
+        ctx.agent().savePendingRecipe(ctx.history());
+        return ctx;
+    }
+
+    @Test
+    void userRecipesAndPreferencesAreRestored() {
+        List<String> warnings = new ArrayList<>();
+        ApplicationContext first = withSavedRecipe(dir, warnings, "Lemon Rice");
+        first.preferences().rate("AI001", 5);
+        first.preferences().setFavorite("AI001", true);
+
+        ApplicationContext second = ApplicationContext.create(dir, CLOCK, warnings::add);
+
+        assertEquals("Lemon Rice", second.recipeBook().get("AI001").orElseThrow().getName());
+        assertEquals(Optional.of(5), second.preferences().getRating("AI001"));
+        assertTrue(second.preferences().isFavorite("AI001"));
+        assertEquals(11, second.recipeBook().size());
+        assertEquals(List.of(), warnings);
+    }
+
+    @Test
+    void loadingUserFilesDoesNotTriggerSaves() throws IOException {
+        withSavedRecipe(dir, new ArrayList<>(), "Lemon Rice").preferences().rate("R101", 4);
+        String recipes = Files.readString(dir.resolve("user-recipes.json"));
+        String ratings = Files.readString(dir.resolve("ratings.json"));
+
+        ApplicationContext.create(dir, CLOCK, warning -> { });
+
+        assertEquals(recipes, Files.readString(dir.resolve("user-recipes.json")));
+        assertEquals(ratings, Files.readString(dir.resolve("ratings.json")));
+    }
+
+    @Test
+    void savingAndUndoUpdateTheUserRecipeFile() {
+        ApplicationContext ctx = withSavedRecipe(dir, new ArrayList<>(), "Lemon Rice");
+        assertTrue(Files.exists(ctx.userRecipesFile()));
+
+        ctx.history().undo();
+
+        assertFalse(Files.exists(ctx.userRecipesFile()), "the file is deleted when the last user recipe is gone");
+        assertFalse(ctx.recipeBook().contains("AI001"));
+    }
+
+    @Test
+    void ratingChangeWritesRatingsFile() throws IOException {
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK);
+        assertFalse(Files.exists(ctx.ratingsFile()));
+
+        ctx.preferences().rate("R101", 3);
+
+        assertTrue(Files.readString(ctx.ratingsFile()).contains("\"R101\" : 3"));
+    }
+
+    @Test
+    void userRecipeWithBundledIdIsRejected() {
+        Recipe clash = new Recipe("R101", "My Stir-Fry", 1, 10, List.of("Cook"),
+                ApplicationContext.create(dir, CLOCK).recipeBook().get("R101").orElseThrow().getIngredients());
+        RecipeRepository.save(dir.resolve("user-recipes.json"), List.of(clash));
+
+        RepositoryException e = assertThrows(RepositoryException.class, () -> ApplicationContext.create(dir, CLOCK));
+
+        assertTrue(e.getMessage().contains("user-recipes.json") && e.getMessage().contains("R101"), e.getMessage());
+    }
+
+    @Test
+    void corruptUserFilesStopStartupAndAreKept() throws IOException {
+        Files.writeString(dir.resolve("ratings.json"), "{\"ratings\": ");
+        assertThrows(RepositoryException.class, () -> ApplicationContext.create(dir, CLOCK));
+        assertEquals("{\"ratings\": ", Files.readString(dir.resolve("ratings.json")));
+        Files.delete(dir.resolve("ratings.json"));
+
+        Files.writeString(dir.resolve("user-recipes.json"), "{\"recipes\": [}");
+        assertThrows(RepositoryException.class, () -> ApplicationContext.create(dir, CLOCK));
+        assertEquals("{\"recipes\": [}", Files.readString(dir.resolve("user-recipes.json")));
+    }
+
+    @Test
+    void ratingsForUnknownRecipesAreDroppedWithAWarning() throws IOException {
+        Files.writeString(dir.resolve("ratings.json"),
+                "{\"ratings\": {\"R101\": 5, \"GHOST\": 3}, \"favorites\": [\"NOPE\", \"R103\"]}");
+        List<String> warnings = new ArrayList<>();
+
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK, warnings::add);
+
+        assertEquals(List.of("Ignored ratings for unknown recipes: GHOST, NOPE"), warnings);
+        assertEquals(Optional.of(5), ctx.preferences().getRating("R101"));
+        assertTrue(ctx.preferences().isFavorite("R103"));
+    }
+
+    @Test
+    void removingASavedRecipePrunesAndPersistsItsRating() throws IOException {
+        ApplicationContext ctx = withSavedRecipe(dir, new ArrayList<>(), "Lemon Rice");
+        ctx.preferences().rate("AI001", 5);
+
+        ctx.history().pushAndExecute(new RemoveRecipeCommand(ctx.recipeBook(), "AI001"));
+
+        assertEquals(Optional.empty(), ctx.preferences().getRating("AI001"));
+        assertFalse(Files.readString(ctx.ratingsFile()).contains("AI001"));
+        assertFalse(Files.exists(ctx.userRecipesFile()));
+    }
+
+    @Test
+    void scalingASavedRecipeIsPersisted() {
+        ApplicationContext ctx = withSavedRecipe(dir, new ArrayList<>(), "Lemon Rice");
+
+        ctx.history().pushAndExecute(new ScaleRecipeCommand(ctx.recipeBook(), "AI001", 4));
+
+        assertEquals(4, ApplicationContext.create(dir, CLOCK).recipeBook().get("AI001").orElseThrow().getServings());
+    }
+
+    @Test
+    void bundledRecipesAreRecognised() {
+        ApplicationContext ctx = withSavedRecipe(dir, new ArrayList<>(), "Lemon Rice");
+
+        assertTrue(ctx.isBundledRecipe("R101"));
+        assertFalse(ctx.isBundledRecipe("AI001"));
+    }
+
+    @Test
+    void failedRatingsSaveIsReported() throws IOException {
+        List<String> warnings = new ArrayList<>();
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK, warnings::add);
+        Files.createDirectories(ctx.ratingsFile());
+        Files.writeString(ctx.ratingsFile().resolve("blocker.txt"), "x");
+
+        ctx.preferences().rate("R101", 2);
+
+        assertEquals(1, warnings.size());
+        assertTrue(warnings.get(0).contains("ratings changes were not saved"), warnings.get(0));
+    }
+
+    @Test
+    void generatedIdsSkipSavedRecipesAfterReload() {
+        withSavedRecipe(dir, new ArrayList<>(), "Lemon Rice");
+        ApplicationContext reloaded = ApplicationContext.create(dir, CLOCK);
+        reloaded.llm().useClient(new OneRecipeClient("Lime Rice"));
+
+        assertEquals("AI002", reloaded.agent().generateRecipe("again", null).recipe().getId());
     }
 }

@@ -1,6 +1,7 @@
 package com.mealmind.cli;
 
 import com.mealmind.agent.AgentException;
+import com.mealmind.agent.PreferenceNotes;
 import com.mealmind.app.ApplicationContext;
 import com.mealmind.command.AddPantryItemCommand;
 import com.mealmind.command.ClearMealCommand;
@@ -62,7 +63,9 @@ public final class CLIHandler {
     private static final String PANTRY_USAGE = "pantry add|list|remove ...";
     private static final String PANTRY_ADD_USAGE = "pantry add \"<name>\" <qty> <unit> [expiry yyyy-MM-dd]";
     private static final String PANTRY_REMOVE_USAGE = "pantry remove \"<name>\"";
-    private static final String RECIPE_USAGE = "recipe list|show|scale|generate|pending|discard ...";
+    private static final String RECIPE_USAGE =
+            "recipe list|show|scale|rate|favorite|unfavorite|generate|pending|save|discard|remove ...";
+    private static final String RECIPE_LIST_USAGE = "recipe list [--favorites]";
     private static final String RECIPE_SHOW_USAGE = "recipe show <id>";
     private static final String RECIPE_SCALE_USAGE = "recipe scale --id <id> --servings <n>";
     private static final String PLAN_USAGE = "plan new|set|clear|show|check ...";
@@ -83,6 +86,7 @@ public final class CLIHandler {
     private final LlmCommands llmCommands;
     private final ToolCommands toolCommands;
     private final AgentCommands agentCommands;
+    private final PreferenceCommands preferenceCommands;
     private ShoppingListGenerator watchedGenerator;
 
     /**
@@ -101,7 +105,9 @@ public final class CLIHandler {
         this.profileCommands = new ProfileCommands(ctx.profile(), out);
         this.llmCommands = new LlmCommands(ctx.llm(), out);
         this.toolCommands = new ToolCommands(ctx.tools(), out);
-        this.agentCommands = new AgentCommands(ctx.agent(), ctx.memory(), out);
+        this.agentCommands = new AgentCommands(ctx.agent(), ctx.memory(),
+                () -> PreferenceNotes.build(ctx.preferences(), ctx.recipeBook()), out);
+        this.preferenceCommands = new PreferenceCommands(ctx, out);
         watch(ctx.generator());
     }
 
@@ -199,7 +205,7 @@ public final class CLIHandler {
         out.println("  " + PANTRY_ADD_USAGE);
         out.println("  pantry list");
         out.println("  " + PANTRY_REMOVE_USAGE);
-        out.println("  recipe list");
+        out.println("  " + RECIPE_LIST_USAGE);
         out.println("  " + RECIPE_SHOW_USAGE);
         out.println("  " + RECIPE_SCALE_USAGE);
         out.println("  " + PLAN_NEW_USAGE);
@@ -215,6 +221,11 @@ public final class CLIHandler {
         out.println("  llm ping   (sends one tiny request to the configured AI provider)");
         out.println("  " + AgentCommands.GENERATE_USAGE + "   (AI agent drafts a recipe; it is not saved)");
         out.println("  recipe pending");
+        out.println("  recipe save   (keeps the pending AI recipe; undo removes it)");
+        out.println("  " + PreferenceCommands.REMOVE_USAGE + "   (saved recipes only)");
+        out.println("  " + PreferenceCommands.RATE_USAGE);
+        out.println("  " + PreferenceCommands.FAVORITE_USAGE);
+        out.println("  " + PreferenceCommands.UNFAVORITE_USAGE);
         out.println("  recipe discard");
         out.println("  memory show");
         out.println("  memory remember \"<fact>\"");
@@ -311,12 +322,17 @@ public final class CLIHandler {
     private void recipe(List<String> args) {
         List<String> rest = args.isEmpty() ? args : args.subList(1, args.size());
         switch (subcommand(args, RECIPE_USAGE)) {
-            case "list" -> recipeList();
+            case "list" -> recipeList(rest);
             case "show" -> recipeShow(rest);
             case "scale" -> recipeScale(rest);
             case "generate" -> agentCommands.generate(rest);
             case "pending" -> agentCommands.pending();
             case "discard" -> agentCommands.discard();
+            case "rate" -> preferenceCommands.rate(rest);
+            case "favorite" -> preferenceCommands.favorite(rest, true);
+            case "unfavorite" -> preferenceCommands.favorite(rest, false);
+            case "save" -> preferenceCommands.save();
+            case "remove" -> preferenceCommands.remove(rest);
             default -> throw new UsageException(RECIPE_USAGE);
         }
     }
@@ -326,11 +342,23 @@ public final class CLIHandler {
                 .orElseThrow(() -> new NoSuchElementException("No recipe with id '" + id + "'. Try 'recipe list'."));
     }
 
-    private void recipeList() {
-        for (Recipe recipe : ctx.recipeBook().getAll()) {
+    /** One line per recipe, ending with the rating ("4/5" or "-") and "fav" for favourites. */
+    private void recipeList(List<String> args) {
+        // "--favorites" is a switch without a value, so it is checked directly rather than through CliArgs.
+        boolean favoritesOnly = args.size() == 1 && args.get(0).equalsIgnoreCase("--favorites");
+        if (!args.isEmpty() && !favoritesOnly) {
+            throw new UsageException(RECIPE_LIST_USAGE);
+        }
+        List<Recipe> recipes = ctx.recipeBook().getAll().stream()
+                .filter(recipe -> !favoritesOnly || ctx.preferences().isFavorite(recipe.getId()))
+                .toList();
+        if (favoritesOnly && recipes.isEmpty()) {
+            out.println("No favorite recipes.");
+        }
+        for (Recipe recipe : recipes) {
             out.println(String.format(Locale.ROOT, "%-6s %-36s %-11s %3d min  %4.0f kcal/serving",
                     recipe.getId(), recipe.getName(), servings(recipe.getServings()), recipe.getPrepMinutes(),
-                    recipe.caloriesPerServing()));
+                    recipe.caloriesPerServing()) + preferenceCommands.listSuffix(recipe.getId()));
         }
     }
 
@@ -346,6 +374,7 @@ public final class CLIHandler {
         for (int i = 0; i < steps.size(); i++) {
             out.println("  " + (i + 1) + ". " + steps.get(i));
         }
+        out.println(preferenceCommands.showLine(recipe.getId()));
         List<Violation> problems = ctx.validator().validateAgainstBlacklists(recipe).getSafetyViolations();
         if (problems.isEmpty()) {
             out.println("Profile check: OK");
