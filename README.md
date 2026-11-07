@@ -66,7 +66,7 @@ This sets `core.hooksPath` to `scripts/hooks`. The hook blocks any commit that s
 
 ### Running the application
 * CLI: see [Running the CLI](#running-the-cli) below.
-* GUI: _added in a later commit_
+* GUI: see [Graphical interface](#graphical-interface) below.
 
 ### Running the CLI
 Start the interactive command line from the project root:
@@ -152,7 +152,7 @@ Plan is safe and within your targets.
 ```
 The safety check is a conservative **keyword heuristic on ingredient names**. It cannot see hidden ingredients (for example dairy inside a sauce) and is not medical advice. Profile changes are settings and are not undoable with `undo`. Describing your diet in free text (for example `profile set --text "..."`) arrives with the AI commands in a later commit.
 
-The AI agent commands (recipe generation, plan generation, natural-language edits) arrive in a later commit, and the JavaFX GUI after that.
+AI plan generation arrives in a later commit. The JavaFX window is described under [Graphical interface](#graphical-interface).
 
 #### Tool layer
 The AI agent (added in the next commit) will see the app only through five **read-only** tools. You can call them yourself with `tools list`, `tools schema` and `tools call <name> [json]`, with no AI configured. Everything after the tool name is the JSON arguments, typed as-is.
@@ -266,6 +266,31 @@ Limitations:
 - One edit per request.
 - The AI may misread a request; that is why every change is undoable.
 - The safety check is keyword-based: it cannot see hidden ingredients and is not medical advice.
+
+### Graphical interface
+Open the window from the project root with either command:
+```bash
+mvn -q javafx:run
+```
+```bash
+mvn -q exec:java -Dexec.args="--gui"
+```
+Both start `Main --gui`, so the window uses the same data directory (`MEALMIND_DATA_DIR`, default `./data`) and the same AI settings as the CLI. (With `exec:java`, JavaFX prints a harmless "Unsupported JavaFX configuration" warning because it runs from the class path.)
+
+The window contains:
+- a **toolbar** with **Undo** and **Redo** buttons (labelled with the next action, also Ctrl+Z / Ctrl+Y) and, on the right, the **AI status** (provider and model, or why AI is disabled; nothing else from the configuration is shown);
+- a **Profile** tab: diet, allergens, daily targets, weekly budget and household servings. Edits stay in the form until **Apply**; errors appear next to the field with the same messages as the CLI; **Reset** reloads the saved profile;
+- a **Pantry** tab: a table of items (expired rows red, items expiring within 3 days amber), an add form (name, quantity, unit, optional expiry date) and **Remove Selected**;
+- a status bar with the result of the last action.
+
+The GUI is a thin front end over the same session objects as the CLI: adding or removing a pantry item runs the same undoable command, so **Undo** reverts it exactly like `undo` in the CLI, and every change is saved to the same files (`profile.json`, `pantry.json`). One running program uses one front end; both read the same files on the next start.
+
+`mvn -q exec:java -Dexec.args="--gui-selftest"` checks the wiring without showing a window: it drives the real Profile and Pantry controls on a temporary data directory and prints one line per check (exit code 0 ok, 1 failed, 3 skipped when JavaFX cannot start).
+
+Limitations:
+- Only the Profile and Pantry tabs exist so far. Recipes, planning, the shopping list, nutrition and all AI features are CLI-only until later commits.
+- Profile changes are settings and are not undoable (as in the CLI).
+- No screenshots are included yet.
 
 ### AI configuration
 MealMind works without any AI provider: pantry, recipes, scaling, plans, profile checks and the shopping list are all deterministic. If AI is not configured, the CLI prints one line at startup ("AI features are disabled: …") and carries on. Startup never contacts the network.

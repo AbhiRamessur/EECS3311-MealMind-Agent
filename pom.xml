@@ -26,8 +26,10 @@
         <javafx-maven-plugin.version>0.0.8</javafx-maven-plugin.version>
         <exec-maven-plugin.version>3.5.0</exec-maven-plugin.version>
 
-        <!-- Entry point for javafx:run; switched to the JavaFX Application class when the GUI is added. -->
+        <!-- Entry point for javafx:run. Main (not the Application class) is kept so the same data directory
+             and AI configuration rules apply; javafx:run passes the arguments below (override with -Dmealmind.javafxArgs). -->
         <mealmind.mainClass>com.mealmind.Main</mealmind.mainClass>
+        <mealmind.javafxArgs>--gui</mealmind.javafxArgs>
     </properties>
 
     <dependencyManagement>
@@ -85,6 +87,7 @@
                 <version>${javafx-maven-plugin.version}</version>
                 <configuration>
                     <mainClass>${mealmind.mainClass}</mainClass>
+                    <commandlineArgs>${mealmind.javafxArgs}</commandlineArgs>
                 </configuration>
             </plugin>
 

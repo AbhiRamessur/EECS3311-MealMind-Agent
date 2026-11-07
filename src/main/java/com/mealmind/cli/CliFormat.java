@@ -11,7 +11,7 @@ import java.util.Locale;
 /**
  * Number formatting for CLI output. Display only: stored values are never changed.
  */
-final class CliFormat {
+public final class CliFormat {
 
     private CliFormat() {
     }
@@ -20,7 +20,7 @@ final class CliFormat {
      * Formats a quantity with its unit, e.g. {@code "1.5 kg"}. Gram and milliliter amounts of 1000 or
      * more are shown in kg or l, and the number is rounded with {@link RecipeScaler#roundForDisplay}.
      */
-    static String amount(double quantity, Unit unit) {
+    public static String amount(double quantity, Unit unit) {
         Unit shown = unit;
         if (unit == Unit.GRAM && quantity >= 1000) {
             shown = Unit.KILOGRAM;

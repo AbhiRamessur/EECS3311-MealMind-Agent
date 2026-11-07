@@ -1,0 +1,69 @@
+/* MealMind GUI theme: plain, readable, consistent spacing. */
+
+.root {
+    -fx-font-size: 13px;
+    -fx-background-color: #f6f7f9;
+}
+
+.top-bar {
+    -fx-padding: 8 12 8 12;
+    -fx-background-color: #ffffff;
+    -fx-border-color: transparent transparent #d9dde3 transparent;
+}
+
+.ai-status {
+    -fx-text-fill: #3d4652;
+}
+
+.tab-content {
+    -fx-padding: 14;
+}
+
+.form .label {
+    -fx-text-fill: #2b3440;
+}
+
+.hint {
+    -fx-text-fill: #6b7380;
+    -fx-font-style: italic;
+}
+
+.field-error {
+    -fx-text-fill: #b3261e;
+    -fx-font-size: 11px;
+}
+
+.status-bar {
+    -fx-padding: 6 12 6 12;
+    -fx-background-color: #ffffff;
+    -fx-border-color: #d9dde3 transparent transparent transparent;
+}
+
+.status-info {
+    -fx-text-fill: #2b3440;
+}
+
+.status-error {
+    -fx-text-fill: #b3261e;
+}
+
+.table-row-cell.expiry-expired {
+    -fx-background-color: #fbe3e1;
+}
+
+.table-row-cell.expiry-expired .text {
+    -fx-fill: #8c1d18;
+}
+
+.table-row-cell.expiry-soon {
+    -fx-background-color: #fff3d6;
+}
+
+.table-row-cell.expiry-soon .text {
+    -fx-fill: #7a4f00;
+}
+
+.table-row-cell.expiry-expired:selected,
+.table-row-cell.expiry-soon:selected {
+    -fx-background-color: -fx-selection-bar;
+}

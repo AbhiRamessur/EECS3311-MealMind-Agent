@@ -54,7 +54,7 @@ class MainTest {
 
     @Test
     void unknownArgumentReturnsTwo() {
-        assertEquals(2, run("", "--gui"));
+        assertEquals(2, run("", "--no-such-option"));
         assertTrue(output().contains("Usage"));
     }
 
@@ -123,5 +123,22 @@ class MainTest {
 
         assertTrue(output().startsWith("Error: "), output());
         assertEquals(corrupt, Files.readString(dir.resolve("ratings.json")));
+    }
+
+    @Test
+    void helpListsTheGuiOptions() {
+        assertEquals(0, run("", "--help"));
+
+        assertTrue(output().contains("--gui "), output());
+        assertTrue(output().contains("--gui-selftest"), output());
+        assertTrue(output().contains("exit 0 ok, 1 failed, 3 skipped"), output());
+    }
+
+    @Test
+    void guiOptionWithCorruptDataReturnsOneBeforeOpeningAWindow() throws Exception {
+        Files.writeString(dir.resolve("pantry.json"), "not json");
+
+        assertEquals(1, run("", "--gui"));
+        assertTrue(output().startsWith("Error: "), output());
     }
 }
