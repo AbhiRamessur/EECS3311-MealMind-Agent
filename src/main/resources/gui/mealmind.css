@@ -67,3 +67,44 @@
 .table-row-cell.expiry-soon:selected {
     -fx-background-color: -fx-selection-bar;
 }
+
+/* Recipes tab */
+
+.detail-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+.table-row-cell.recipe-unsafe {
+    -fx-background-color: #f7ecec;
+}
+
+.table-row-cell.recipe-unsafe .text {
+    -fx-fill: #8a5a58;
+}
+
+.table-row-cell.recipe-favorite .text {
+    -fx-font-weight: bold;
+}
+
+.table-row-cell.recipe-unsafe:selected,
+.table-row-cell.recipe-favorite:selected {
+    -fx-background-color: -fx-selection-bar;
+}
+
+.banner-ok {
+    -fx-text-fill: #1e6b35;
+    -fx-font-weight: bold;
+}
+
+.banner-warning {
+    -fx-text-fill: #8c1d18;
+    -fx-background-color: #fbe3e1;
+    -fx-padding: 6;
+    -fx-font-weight: bold;
+}
+
+.activity-log {
+    -fx-font-family: "Monospaced";
+    -fx-font-size: 12px;
+}

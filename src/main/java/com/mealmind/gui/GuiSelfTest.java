@@ -1,6 +1,7 @@
 package com.mealmind.gui;
 
 import com.mealmind.app.ApplicationContext;
+import com.mealmind.gui.logic.RecipeRow;
 import com.mealmind.model.Unit;
 import com.mealmind.profile.DietType;
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -141,8 +143,92 @@ public final class GuiSelfTest {
                     return text.startsWith("AI") && !KEY_LIKE.matcher(text).find();
                 });
             }
-            return failure;
+            return failure == null ? recipeChecks(ctx, controller, out) : failure;
         }
+    }
+
+    /**
+     * Recipes tab checks (deterministic, no AI). Runs after the profile check, so the profile is vegetarian
+     * with a peanut allergy: the meat and fish samples (R101, R104, R106) and the peanut toast (R109) are unsafe.
+     */
+    private static String recipeChecks(ApplicationContext ctx, MainController controller, PrintStream out) {
+        RecipesTab recipes = controller.recipesTab();
+        RecipeDetailsPane details = recipes.details();
+        List<String> unsafe = List.of("R101", "R104", "R106", "R109");
+        List<Check> checks = List.of(
+                new Check("recipes table lists the 10 bundled recipes, unsafe ones flagged", () ->
+                        recipes.table().getItems().size() == 10
+                                && recipes.table().getItems().stream().filter(row -> !row.safe()).map(RecipeRow::id).toList().equals(unsafe)),
+                new Check("filter 'lentil' shows only matching recipes", () -> {
+                    recipes.filterField().setText("lentil");
+                    boolean ok = ids(recipes).equals(List.of("R103"));
+                    recipes.filterField().setText("");
+                    return ok && recipes.table().getItems().size() == 10;
+                }),
+                new Check("selecting a recipe fills the details", () -> {
+                    recipes.select("R103");
+                    return details.titleLabel().getText().equals("R103 Red Lentil Soup")
+                            && details.bodyArea().getText().contains("Profile check: OK");
+                }),
+                new Check("rating 4/5 updates the table and the preferences", () -> {
+                    details.ratingChoice().setValue("4");
+                    details.rateButton().fire();
+                    return ctx.preferences().getRating("R103").orElse(0) == 4 && row(recipes, "R103").ratingText().equals("4/5");
+                }),
+                new Check("favorite toggle and 'Favorites only' filter", () -> {
+                    details.favoriteButton().fire();
+                    recipes.favoritesOnlyBox().fire();
+                    boolean ok = ctx.preferences().isFavorite("R103") && ids(recipes).equals(List.of("R103"));
+                    recipes.favoritesOnlyBox().fire();
+                    return ok && recipes.table().getItems().size() == 10;
+                }),
+                new Check("scaling to 6 servings runs through the history and Undo restores it", () -> {
+                    recipes.select("R103");
+                    details.servingsField().setText("6");
+                    details.scaleButton().fire();
+                    boolean scaled = servings(ctx, "R103") == 6 && ctx.history().canUndo();
+                    controller.toolBar().undoButton().fire();
+                    return scaled && servings(ctx, "R103") == 4;
+                }),
+                new Check("remove is disabled for a bundled recipe", () -> {
+                    recipes.select("R103");
+                    return details.removeButton().isDisabled();
+                }),
+                new Check("recommend fills 5 safe rows; unsafe recipes stay listed but flagged", () -> {
+                    recipes.recommend().recommendButton().fire();
+                    List<String> recommended = recipes.recommend().table().getItems().stream().map(r -> r.id()).toList();
+                    return recommended.size() == 5 && recommended.stream().noneMatch(unsafe::contains)
+                            && recipes.table().getItems().size() == 10 && !row(recipes, "R101").safe();
+                }),
+                new Check("Generate is disabled with an AI tooltip when AI is not configured", () -> {
+                    GeneratePane generate = recipes.generate();
+                    return generate.generateButton().isDisabled() && generate.generateButton().getTooltip() != null
+                            && generate.generateButton().getTooltip().getText().contains("AI features")
+                            && generate.saveButton().isDisabled() && generate.discardButton().isDisabled();
+                }));
+        for (Check check : checks) {
+            String failure = check(out, check.name(), check.test());
+            if (failure != null) {
+                return failure;
+            }
+        }
+        return null;
+    }
+
+    /** One named self-test check. */
+    private record Check(String name, BooleanSupplier test) {
+    }
+
+    private static List<String> ids(RecipesTab recipes) {
+        return recipes.table().getItems().stream().map(RecipeRow::id).toList();
+    }
+
+    private static RecipeRow row(RecipesTab recipes, String id) {
+        return recipes.table().getItems().stream().filter(r -> r.id().equals(id)).findFirst().orElseThrow();
+    }
+
+    private static int servings(ApplicationContext ctx, String id) {
+        return ctx.recipeBook().get(id).orElseThrow().getServings();
     }
 
     private static String check(PrintStream out, String name, BooleanSupplier test) {

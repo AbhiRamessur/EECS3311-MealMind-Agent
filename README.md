@@ -268,28 +268,54 @@ Limitations:
 - The safety check is keyword-based: it cannot see hidden ingredients and is not medical advice.
 
 ### Graphical interface
-Open the window from the project root with either command:
+The simplest way to open the window, from the project root:
 ```bash
 mvn -q javafx:run
 ```
+Or through `exec:java` (bash, Git Bash, macOS/Linux):
 ```bash
 mvn -q exec:java -Dexec.args="--gui"
 ```
-Both start `Main --gui`, so the window uses the same data directory (`MEALMIND_DATA_DIR`, default `./data`) and the same AI settings as the CLI. (With `exec:java`, JavaFX prints a harmless "Unsupported JavaFX configuration" warning because it runs from the class path.)
+In **PowerShell**, quote the whole property, because PowerShell splits `-Dexec.args=...` at the dot and Maven then sees a broken argument:
+```powershell
+mvn -q exec:java "-Dexec.args=--gui"
+```
+All of these start `Main --gui`, so the window uses the same data directory (`MEALMIND_DATA_DIR`, default `./data`) and the same AI settings as the CLI. (With `exec:java`, JavaFX prints a harmless "Unsupported JavaFX configuration" warning because it runs from the class path.)
 
 The window contains:
 - a **toolbar** with **Undo** and **Redo** buttons (labelled with the next action, also Ctrl+Z / Ctrl+Y) and, on the right, the **AI status** (provider and model, or why AI is disabled; nothing else from the configuration is shown);
 - a **Profile** tab: diet, allergens, daily targets, weekly budget and household servings. Edits stay in the form until **Apply**; errors appear next to the field with the same messages as the CLI; **Reset** reloads the saved profile;
 - a **Pantry** tab: a table of items (expired rows red, items expiring within 3 days amber), an add form (name, quantity, unit, optional expiry date) and **Remove Selected**;
+- a **Recipes** tab (see below);
 - a status bar with the result of the last action.
 
 The GUI is a thin front end over the same session objects as the CLI: adding or removing a pantry item runs the same undoable command, so **Undo** reverts it exactly like `undo` in the CLI, and every change is saved to the same files (`profile.json`, `pantry.json`). One running program uses one front end; both read the same files on the next start.
 
-`mvn -q exec:java -Dexec.args="--gui-selftest"` checks the wiring without showing a window: it drives the real Profile and Pantry controls on a temporary data directory and prints one line per check (exit code 0 ok, 1 failed, 3 skipped when JavaFX cannot start).
+The GUI self-test checks the wiring without showing a window: it drives the real Profile, Pantry and Recipes controls on a temporary data directory (no AI, no network) and prints one line per check (exit code 0 ok, 1 failed, 3 skipped when JavaFX cannot start):
+```bash
+mvn -q javafx:run -Dmealmind.javafxArgs=--gui-selftest
+```
+```bash
+mvn -q exec:java -Dexec.args="--gui-selftest"
+```
+```powershell
+mvn -q exec:java "-Dexec.args=--gui-selftest"
+mvn -q javafx:run "-Dmealmind.javafxArgs=--gui-selftest"
+```
+
+#### Recipes tab
+The left side lists every recipe (id, name, servings, prep time, kcal per serving, your rating, favorite, safety), with a filter box (id, name or ingredient) and **Favorites only**. Recipes that break your diet or allergen rules are **listed but flagged** ("Safe: NO", muted red) so you can see why they are never suggested; the AI tools, by contrast, never see them at all. The right side has three sections:
+- **Details**: the selected recipe as `recipe show` prints it, a rating choice (1-5 or Clear) with **Rate**, a **Favorite** toggle, a servings field with **Scale**, and **Remove saved recipe** (only for recipes you saved; the bundled samples cannot be removed).
+- **Recommendations**: Pantry first, max minutes and limit (default 5), then **Recommend**. The list is computed by code; tick **Explain with AI** to have the AI re-rank it afterwards (it can only reorder the same recipes). If the AI fails, the computed list stays and the status bar says "AI explanation unavailable: ...". Clicking a row selects that recipe on the left.
+- **Generate**: describe a recipe and press **Generate**. The agent's activity appears live in the **Agent activity** log; the result is a **pending** preview with its safety check. **Save** adds it to your recipe book (re-checked against your current profile; disabled for an unsafe recipe) and **Discard** drops it.
+
+**Explain with AI** and **Generate** need AI configured and make paid API calls; without AI they are disabled with a tooltip giving the reason, and everything else works. AI work runs in the background, so the window stays responsive.
+
+What can be undone (same as the CLI): saving, scaling and removing recipes (and pantry changes) go through **Undo**/**Redo**; ratings, favorites and profile edits are settings and are not undoable.
 
 Limitations:
-- Only the Profile and Pantry tabs exist so far. Recipes, planning, the shopping list, nutrition and all AI features are CLI-only until later commits.
-- Profile changes are settings and are not undoable (as in the CLI).
+- The Plan, Shopping List and Nutrition tabs and natural-language plan editing are CLI-only until later commits.
+- The GUI is English-only.
 - No screenshots are included yet.
 
 ### AI configuration

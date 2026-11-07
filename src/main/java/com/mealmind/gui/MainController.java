@@ -22,7 +22,7 @@ import javafx.scene.layout.Region;
 
 /**
  * The main window's controller (Stage 1 {@code MainController}): a toolbar with Undo/Redo and the AI
- * status, a tab pane with the Profile and Pantry tabs, and a status bar. Every view is subscribed to its
+ * status, a tab pane with the Profile, Pantry and Recipes tabs, and a status bar. Every view is subscribed to its
  * model through an {@link ObserverBinding} on the FX thread; {@link #close()} unsubscribes them all.
  *
  * <p>It works on the same {@link ApplicationContext} as the CLI: the same models, commands and history.
@@ -37,6 +37,7 @@ public final class MainController implements AutoCloseable {
     private final UndoRedoToolBar toolBar;
     private final ProfileTab profileTab;
     private final PantryTab pantryTab;
+    private final RecipesTab recipesTab;
     private final BorderPane root = new BorderPane();
 
     /**
@@ -62,13 +63,20 @@ public final class MainController implements AutoCloseable {
         bindings.add(ObserverBinding.bind(ctx.profile(), ui, profileTab::onProfileChanged));
         pantryTab = new PantryTab(ctx.pantry(), ctx.history(), () -> LocalDate.now(ctx.clock()), this::showStatus);
         bindings.add(ObserverBinding.bind(ctx.pantry(), ui, pantryTab::refresh));
+        recipesTab = new RecipesTab(ctx, background, ui, this::showStatus);
+        bindings.add(ObserverBinding.bind(ctx.recipeBook(), ui, recipesTab::refresh));
+        bindings.add(ObserverBinding.bind(ctx.preferences(), ui, recipesTab::refresh));
+        // Safety flags depend on the profile.
+        bindings.add(ObserverBinding.bind(ctx.profile(), ui, recipesTab::refresh));
+        bindings.add(ObserverBinding.bind(ctx.agent(), ui, recipesTab::refreshPending));
+        bindings.add(ObserverBinding.bind(ctx.llm(), ui, recipesTab::refreshAi));
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox top = new HBox(8, toolBar, spacer, aiStatus);
         top.setAlignment(Pos.CENTER_LEFT);
         top.getStyleClass().add("top-bar");
-        TabPane tabs = new TabPane(profileTab, pantryTab);
+        TabPane tabs = new TabPane(profileTab, pantryTab, recipesTab);
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         statusBar.getStyleClass().add("status-bar");
         statusBar.setMaxWidth(Double.MAX_VALUE);
@@ -140,6 +148,10 @@ public final class MainController implements AutoCloseable {
 
     PantryTab pantryTab() {
         return pantryTab;
+    }
+
+    RecipesTab recipesTab() {
+        return recipesTab;
     }
 
     Label aiStatusLabel() {

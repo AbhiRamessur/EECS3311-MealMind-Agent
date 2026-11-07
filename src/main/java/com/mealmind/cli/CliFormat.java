@@ -32,7 +32,7 @@ public final class CliFormat {
     }
 
     /** A display number without a trailing ".0"; a positive amount that would round to 0 keeps 2 decimals. */
-    static String number(double quantity, Unit unit) {
+    public static String number(double quantity, Unit unit) {
         double rounded = RecipeScaler.roundForDisplay(quantity, unit);
         BigDecimal shown = rounded > 0 || quantity == 0
                 ? BigDecimal.valueOf(rounded)
@@ -41,7 +41,7 @@ public final class CliFormat {
     }
 
     /** Calories, macros and cost of a component divided by {@code servings}, on one line. */
-    static String nutrition(MealComponent component, int servings) {
+    public static String nutrition(MealComponent component, int servings) {
         return String.format(Locale.ROOT, "%.0f kcal, %.1f g protein, %.1f g carbs, %.1f g fat, $%.2f",
                 component.getCalories() / servings, component.getProteinG() / servings,
                 component.getCarbsG() / servings, component.getFatG() / servings, component.getCost() / servings);
