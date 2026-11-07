@@ -27,6 +27,8 @@ import com.mealmind.persistence.RepositoryException;
 import com.mealmind.planning.PlanRequest;
 import com.mealmind.planning.PlanResult;
 import com.mealmind.profile.DietType;
+import com.mealmind.recommend.RecommendationRequest;
+import com.mealmind.recommend.RecommendationResult;
 import com.mealmind.shopping.ShoppingList;
 import com.mealmind.shopping.ShoppingListGenerator;
 import com.mealmind.tools.ToolCall;
@@ -442,5 +444,33 @@ class ApplicationContextTest {
 
         assertTrue(result.notes().contains("Excluded 1 recipe(s) you rated 1-2 stars."));
         assertFalse(result.plan().getRecipes().stream().anyMatch(r -> r.getId().equals("R101")));
+    }
+
+    // ---- Commit 14: nutrition and recommendations ----
+
+    @Test
+    void nutritionFollowsTheCurrentPlan() {
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK);
+        ctx.plan().setMeal(1, MealType.DINNER, recipeMeal(ctx, "R103"));
+        assertEquals(1, ctx.nutrition().mealsPlanned());
+        assertEquals(28, ctx.nutrition().slotsTotal());
+
+        ctx.newPlan(2);
+
+        assertEquals(0, ctx.nutrition().mealsPlanned());
+        assertEquals(8, ctx.nutrition().slotsTotal());
+    }
+
+    @Test
+    void recommenderWorksOnTheBundledRecipes() {
+        ApplicationContext ctx = ApplicationContext.create(dir, CLOCK);
+        ctx.profile().setDiet(DietType.VEGETARIAN);
+
+        RecommendationResult result = ctx.recommender().recommend(RecommendationRequest.defaults());
+
+        assertSame(ctx.recommender(), ctx.recommender());
+        assertEquals(5, result.items().size());
+        assertTrue(result.notes().contains("Pantry is empty; ranking uses your ratings and favorites only."));
+        assertFalse(result.items().stream().anyMatch(item -> List.of("R101", "R104", "R106").contains(item.recipe().getId())));
     }
 }

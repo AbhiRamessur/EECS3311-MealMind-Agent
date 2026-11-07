@@ -91,6 +91,7 @@ The meal plan is kept in memory for the session only. The ten sample recipes (R1
 | `recipe unfavorite --id <id>` | `recipe unfavorite --id R103` |
 | `recipe remove <id>` | `recipe remove AI001` (saved recipes only) |
 | `recipe scale --id <id> --servings <n>` | `recipe scale --id R101 --servings 4` |
+| `recipe recommend [--pantry-first] [--max-time n] [--limit n] [--explain]` | `recipe recommend --pantry-first --max-time 30` |
 | `plan new --days <n>` | `plan new --days 5` |
 | `plan set <day> <slot> <recipeId> [--servings <n>]` | `plan set 1 dinner R101 --servings 3` |
 | `plan clear <day> <slot>` | `plan clear 1 dinner` |
@@ -98,6 +99,7 @@ The meal plan is kept in memory for the session only. The ten sample recipes (R1
 | `plan check` | `plan check` |
 | `plan generate [--days n] [--strategy id] [--slots lunch,dinner] [--budget n] [--replace]` | `plan generate --days 5 --strategy budget --budget 60` |
 | `plan strategies` | `plan strategies` |
+| `plan nutrition [--explain]` | `plan nutrition` |
 | `profile show` | `profile show` |
 | `profile diet <omnivore\|vegetarian\|vegan\|pescatarian>` | `profile diet vegetarian` |
 | `profile allergy add\|remove "<name>"` | `profile allergy add "tree nuts"` |
@@ -216,6 +218,34 @@ Limitations:
 - Recipes have no meal-type tags, so a breakfast slot may get any safe recipe (for example a soup).
 - Pantry use is not simulated across meals: every recipe is scored against the pantry as it is now.
 - The AI planner (free-text requests) comes in a later commit.
+
+#### Nutrition analysis
+`plan nutrition` adds up the current plan: one line per day that has meals, the plan totals, the daily average (over the days that have meals) and, for each calorie or macro target set in your profile, how close the average comes. All numbers are computed by MealMind from the recipes; no AI is involved.
+```
+mealmind> plan nutrition
+Nutrition summary
+Day 1: 2 meals, 842 kcal, P 37.9 g, C 103.0 g, F 34.2 g, $3.77
+Totals (2 meals planned, 28 slots): 842 kcal, P 37.9 g, C 103.0 g, F 34.2 g, $3.77
+Daily average (1 day with meals): 842 kcal, P 37.9 g, C 103.0 g, F 34.2 g, $3.77
+Calories: 842 of 2000 kcal per day (42%)
+```
+`plan nutrition --explain` prints the same figures and then a short **AI commentary** on them. The AI only interprets the numbers it is given and never changes them.
+
+#### Recipe recommendations
+`recipe recommend` lists up to 5 recipes that are safe for your profile, ranked by your favorites and ratings first, then by how much of each recipe your pantry already covers. `--pantry-first` ranks by pantry coverage first, `--max-time 30` keeps recipes that take at most 30 minutes, and `--limit n` (1-10) changes how many are shown. Recipes rated 1-2 stars are left out while others are available. If nothing fits the time limit, the limit is relaxed and the quickest recipes are shown with a note; with an empty pantry the ranking uses only your ratings and favorites. Safety rules are never relaxed.
+```
+mealmind> recipe recommend --pantry-first --limit 2
+1. R103 Red Lentil Soup - Covers 13% of your pantry; missing: Onion, Carrots, Garlic and 4 more; 40 min
+2. R109 Peanut Butter Banana Toast - Covers 0% of your pantry; missing: Whole wheat bread, Peanut butter, Banana and 1 more; 5 min
+```
+`recipe recommend --explain` prints the same list and then an **AI-ranked** version: the AI may only reorder those recipes and write a short reason for each; it cannot add a recipe.
+
+**What is computed and what is AI.** Numbers, filtering and the first ranking always come from code and work offline. `--explain` is an explicit opt-in because it calls the configured AI provider, which can cost a few cents per request. If AI is not configured or the call fails, the deterministic result is still printed, followed by one line `AI explanation unavailable: <reason>`.
+
+Limitations:
+- The nutrition values of AI-generated recipes are AI estimates, so their totals are estimates too.
+- An ingredient whose calories and macros are all 0 is flagged as "Nutritional data unavailable" unless its name is on a short list of genuinely zero-nutrition items (water, ice, salt, pepper, baking soda, baking powder, vinegar, spices, seasonings).
+- Safety keywords and pantry matching are name-based heuristics: they cannot see hidden ingredients, and a pantry item only counts when its name and unit match the recipe.
 
 ### AI configuration
 MealMind works without any AI provider: pantry, recipes, scaling, plans, profile checks and the shopping list are all deterministic. If AI is not configured, the CLI prints one line at startup ("AI features are disabled: …") and carries on. Startup never contacts the network.

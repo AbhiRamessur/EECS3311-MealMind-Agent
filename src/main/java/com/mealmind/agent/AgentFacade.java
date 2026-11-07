@@ -8,7 +8,9 @@ import com.mealmind.llm.LlmService;
 import com.mealmind.model.ObservableSubject;
 import com.mealmind.model.Recipe;
 import com.mealmind.model.RecipeBook;
+import com.mealmind.nutrition.NutritionSummary;
 import com.mealmind.profile.UserProfile;
+import com.mealmind.recommend.RecommendationResult;
 import com.mealmind.tools.ToolManager;
 import com.mealmind.validation.ConstraintValidator;
 import com.mealmind.validation.Violation;
@@ -25,14 +27,14 @@ import java.util.stream.Collectors;
  * The <strong>Facade</strong> for every AI feature: the single entry point the user interfaces use.
  *
  * <p>Roles: Facade = {@code AgentFacade}; Subsystem = {@link AgentLoop}, {@link RecipeGenerator},
- * {@link PromptBuilder}, {@link RecipeDraftParser}, {@link LlmService}, {@link ToolManager},
+ * {@link NutritionCommentator}, {@link RecommendationRanker}, {@link PromptBuilder}, {@link RecipeDraftParser}, {@link LlmService}, {@link ToolManager},
  * {@link ConstraintValidator} and {@link AgentMemory}; Clients = the CLI's command handler now and the
  * JavaFX controller later. Clients never touch the subsystem classes for AI features.
  *
  * <p>A generated recipe is held as the <em>pending</em> candidate (safe or flagged unsafe); it is
  * never saved automatically: only {@link #savePendingRecipe} saves it, after re-checking its safety.
  * The facade is also an {@link ObservableSubject}: observers are notified once when a candidate is
- * stored, saved or discarded. Only one request runs at a time.
+ * stored, saved or discarded. Only one request runs at a time, whichever AI feature it is for.
  */
 public final class AgentFacade extends ObservableSubject {
 
@@ -40,6 +42,9 @@ public final class AgentFacade extends ObservableSubject {
     private final ConstraintValidator validator;
     private final RecipeBook recipes;
     private final RecipeGenerator recipeGenerator;
+    private final UserProfile profile;
+    private final NutritionCommentator nutritionCommentator;
+    private final RecommendationRanker recommendationRanker;
     private final AtomicBoolean busy = new AtomicBoolean();
     private volatile GeneratedRecipe pending;
 
@@ -76,8 +81,11 @@ public final class AgentFacade extends ObservableSubject {
         this.llm = Objects.requireNonNull(llm, "llm");
         this.validator = Objects.requireNonNull(validator, "validator");
         this.recipes = Objects.requireNonNull(recipes, "recipes");
+        this.profile = Objects.requireNonNull(profile, "profile");
         AgentLoop loop = new AgentLoop(llm, tools, limits);
         this.recipeGenerator = new RecipeGenerator(loop, validator, profile, memory, tools, limits, recipes, ratingNotes);
+        this.nutritionCommentator = new NutritionCommentator(llm);
+        this.recommendationRanker = new RecommendationRanker(llm);
     }
 
     /**
@@ -92,6 +100,49 @@ public final class AgentFacade extends ObservableSubject {
      *                               when AI is not configured
      */
     public GeneratedRecipe generateRecipe(String prompt, Consumer<AgentEvent> activity) {
+        GeneratedRecipe result = exclusive(() -> recipeGenerator.generate(prompt, activity));
+        pending = result;
+        notifyObservers("Pending recipe " + result.recipe().getId() + (result.safe() ? "" : " (flagged unsafe)"));
+        return result;
+    }
+
+    /**
+     * Writes AI commentary on computed nutrition figures (F09). The model only interprets the figures;
+     * it never changes them. Observers are not notified and the pending recipe is not touched.
+     *
+     * @param summary  the computed summary
+     * @param activity receives agent activity events, or null
+     * @return the commentary
+     * @throws IllegalStateException if another request is already running
+     * @throws LlmException          {@link LlmErrorKind#UNAVAILABLE} at once when AI is not configured
+     * @throws AgentException        if no valid commentary was produced
+     */
+    public String explainNutrition(NutritionSummary summary, Consumer<AgentEvent> activity) {
+        Objects.requireNonNull(summary, "summary");
+        return exclusive(() -> nutritionCommentator.comment(summary, profile, activity));
+    }
+
+    /**
+     * Re-ranks deterministic recommendations with AI (F03). The model may only reorder the given items
+     * and rewrite their reasons. Observers are not notified and the pending recipe is not touched.
+     *
+     * @param result   the deterministic recommendations
+     * @param activity receives agent activity events, or null
+     * @return the reordered result
+     * @throws IllegalStateException if another request is already running
+     * @throws LlmException          {@link LlmErrorKind#UNAVAILABLE} at once when AI is not configured
+     * @throws AgentException        if no valid ranking was produced
+     */
+    public RecommendationResult rerankRecommendations(RecommendationResult result, Consumer<AgentEvent> activity) {
+        Objects.requireNonNull(result, "result");
+        return exclusive(() -> recommendationRanker.rerank(result, profile, activity));
+    }
+
+    /**
+     * Runs one AI job: checks availability first (before any agent activity), then holds the busy guard
+     * so two jobs never overlap.
+     */
+    private <T> T exclusive(Supplier<T> job) {
         if (!llm.isAvailable()) {
             throw new LlmException(LlmErrorKind.UNAVAILABLE,
                     "AI features are disabled: " + llm.unavailableReason().orElse("not configured"), null);
@@ -100,10 +151,7 @@ public final class AgentFacade extends ObservableSubject {
             throw new IllegalStateException("The agent is already working on a request");
         }
         try {
-            GeneratedRecipe result = recipeGenerator.generate(prompt, activity);
-            pending = result;
-            notifyObservers("Pending recipe " + result.recipe().getId() + (result.safe() ? "" : " (flagged unsafe)"));
-            return result;
+            return job.get();
         } finally {
             busy.set(false);
         }

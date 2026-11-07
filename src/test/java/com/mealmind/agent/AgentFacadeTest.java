@@ -11,10 +11,17 @@ import com.mealmind.llm.LlmErrorKind;
 import com.mealmind.llm.LlmException;
 import com.mealmind.llm.LlmService;
 import com.mealmind.model.ChangeEvent;
+import com.mealmind.model.Ingredient;
 import com.mealmind.model.Recipe;
 import com.mealmind.model.RecipeBook;
+import com.mealmind.model.Unit;
+import com.mealmind.nutrition.DayNutrition;
+import com.mealmind.nutrition.Macros;
+import com.mealmind.nutrition.NutritionSummary;
 import com.mealmind.profile.DietType;
 import com.mealmind.profile.UserProfile;
+import com.mealmind.recommend.Recommendation;
+import com.mealmind.recommend.RecommendationResult;
 import com.mealmind.tools.ToolManager;
 import com.mealmind.validation.ConstraintValidator;
 import java.util.ArrayList;
@@ -232,5 +239,77 @@ class AgentFacadeTest {
         assertEquals("AI features are disabled: No OpenAI API key configured", e.getMessage());
         assertEquals(0, client.requests.size());
         assertEquals(List.of(), activity);
+    }
+
+    // ---- Commit 14: nutrition commentary and recommendation re-ranking ----
+
+    private static NutritionSummary oneDaySummary() {
+        Macros day = new Macros(800, 40, 90, 20, 5);
+        return new NutritionSummary(List.of(new DayNutrition(1, day, 2)), day, day, List.of(), List.of(), 2, 4);
+    }
+
+    private static RecommendationResult twoRecommendations() {
+        List<Recommendation> items = new ArrayList<>();
+        for (String id : List.of("R1", "R2")) {
+            Recipe recipe = new Recipe(id, "Bowl " + id, 1, 10, List.of("Cook"),
+                    List.of(new Ingredient("Rice", 100, Unit.GRAM, 130, 3, 28, 0, 0.5)));
+            items.add(new Recommendation(recipe, 0, List.of("Rice"), false, null, "Reason " + id));
+        }
+        return new RecommendationResult(items, List.of());
+    }
+
+    @Test
+    void analysisMethodsFailBeforeAnyModelCallWhenAiIsDisabled() {
+        llm.disable("Not configured");
+
+        LlmException nutrition = assertThrows(LlmException.class, () -> facade.explainNutrition(oneDaySummary(), null));
+        LlmException ranking = assertThrows(LlmException.class, () -> facade.rerankRecommendations(twoRecommendations(), null));
+
+        assertEquals(LlmErrorKind.UNAVAILABLE, nutrition.getKind());
+        assertEquals("AI features are disabled: Not configured", nutrition.getMessage());
+        assertEquals(LlmErrorKind.UNAVAILABLE, ranking.getKind());
+        assertTrue(client.requests.isEmpty());
+    }
+
+    @Test
+    void analysisMethodsDelegateWithoutTouchingThePendingRecipeOrObservers() {
+        client.reply(recipe("Bowl", "Rice", "Beans"));
+        facade.generateRecipe("bowl", null);
+        events.clear();
+        client.reply("{\"commentary\": \"Calories are about 40% of target; add a snack.\"}",
+                "{\"ranking\": [{\"id\": \"R2\", \"reason\": \"Better\"}]}");
+
+        assertEquals("Calories are about 40% of target; add a snack.", facade.explainNutrition(oneDaySummary(), null));
+        assertEquals("R2", facade.rerankRecommendations(twoRecommendations(), null).items().get(0).recipe().getId());
+
+        assertEquals("Bowl", facade.pendingRecipe().orElseThrow().recipe().getName());
+        assertTrue(events.isEmpty());
+    }
+
+    @Test
+    void analysisMethodsShareTheBusyGuard() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        client.blockUntil(release).reply(recipe("Slow Bowl", "Rice", "Beans"),
+                "{\"commentary\": \"Calories are about 40% of target; add a snack.\"}");
+        Thread worker = new Thread(() -> facade.generateRecipe("slow", null));
+        worker.start();
+        assertTrue(client.entered.await(5, TimeUnit.SECONDS));
+
+        assertEquals("The agent is already working on a request",
+                assertThrows(IllegalStateException.class, () -> facade.explainNutrition(oneDaySummary(), null)).getMessage());
+        assertThrows(IllegalStateException.class, () -> facade.rerankRecommendations(twoRecommendations(), null));
+
+        release.countDown();
+        worker.join(5000);
+        assertTrue(facade.explainNutrition(oneDaySummary(), null).startsWith("Calories"));
+    }
+
+    @Test
+    void oldConstructorStillBuildsTheAnalysisSubsystem() {
+        AgentFacade old = new AgentFacade(llm, new ToolManager(), new AgentMemory(), new ConstraintValidator(profile), profile,
+                new RecipeBook(), AgentLimits.defaults());
+        client.reply("{\"commentary\": \"Calories are about 40% of target; add a snack.\"}");
+
+        assertTrue(old.explainNutrition(oneDaySummary(), null).contains("40%"));
     }
 }

@@ -9,6 +9,8 @@ import com.mealmind.llm.LlmService;
 import com.mealmind.model.MealPlan;
 import com.mealmind.model.Recipe;
 import com.mealmind.model.RecipeBook;
+import com.mealmind.nutrition.NutritionAggregator;
+import com.mealmind.nutrition.NutritionSummary;
 import com.mealmind.pantry.Pantry;
 import com.mealmind.pantry.PantryItem;
 import com.mealmind.persistence.PantryRepository;
@@ -19,6 +21,7 @@ import com.mealmind.persistence.RepositoryException;
 import com.mealmind.planning.RulePlanner;
 import com.mealmind.preferences.RecipePreferences;
 import com.mealmind.profile.UserProfile;
+import com.mealmind.recommend.RecipeRecommender;
 import com.mealmind.shopping.ShoppingListGenerator;
 import com.mealmind.tools.ConstraintCheckTool;
 import com.mealmind.tools.PantryTool;
@@ -79,6 +82,7 @@ public final class ApplicationContext {
     private final RecipePreferences preferences;
     private final Set<String> bundledIds;
     private final RulePlanner planner;
+    private final RecipeRecommender recommender;
     private MealPlan plan;
     private ShoppingListGenerator generator;
     private Consumer<String> warningSink = System.err::println;
@@ -102,6 +106,7 @@ public final class ApplicationContext {
         this.agent = new AgentFacade(llm, tools, memory, validator, profile, recipeBook, AgentLimits.defaults(),
                 () -> PreferenceNotes.build(preferences, recipeBook));
         this.planner = new RulePlanner(recipeBook, pantry, validator, preferences, profile);
+        this.recommender = new RecipeRecommender(recipeBook, pantry, validator, preferences);
     }
 
     /**
@@ -424,6 +429,25 @@ public final class ApplicationContext {
      */
     public RulePlanner planner() {
         return planner;
+    }
+
+    /**
+     * Returns the deterministic recipe recommender (F03), reading the shared recipe book, pantry,
+     * validator and preferences.
+     *
+     * @return the recommender
+     */
+    public RecipeRecommender recommender() {
+        return recommender;
+    }
+
+    /**
+     * Analyzes the <strong>current</strong> plan (it follows {@link #newPlan}) against the profile (F09).
+     *
+     * @return a fresh summary
+     */
+    public NutritionSummary nutrition() {
+        return NutritionAggregator.aggregate(plan, profile);
     }
 
     /**

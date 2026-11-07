@@ -64,7 +64,7 @@ public final class CLIHandler {
     private static final String PANTRY_ADD_USAGE = "pantry add \"<name>\" <qty> <unit> [expiry yyyy-MM-dd]";
     private static final String PANTRY_REMOVE_USAGE = "pantry remove \"<name>\"";
     private static final String RECIPE_USAGE =
-            "recipe list|show|scale|rate|favorite|unfavorite|generate|pending|save|discard|remove ...";
+            "recipe list|show|scale|rate|favorite|unfavorite|generate|pending|save|discard|remove|recommend ...";
     private static final String RECIPE_LIST_USAGE = "recipe list [--favorites]";
     private static final String RECIPE_SHOW_USAGE = "recipe show <id>";
     private static final String RECIPE_SCALE_USAGE = "recipe scale --id <id> --servings <n>";
@@ -88,6 +88,7 @@ public final class CLIHandler {
     private final AgentCommands agentCommands;
     private final PreferenceCommands preferenceCommands;
     private final PlanGenerationCommands planGenerationCommands;
+    private final AnalysisCommands analysisCommands;
     private ShoppingListGenerator watchedGenerator;
 
     /**
@@ -110,6 +111,7 @@ public final class CLIHandler {
                 () -> PreferenceNotes.build(ctx.preferences(), ctx.recipeBook()), out);
         this.preferenceCommands = new PreferenceCommands(ctx, out);
         this.planGenerationCommands = new PlanGenerationCommands(ctx, () -> watch(ctx.generator()), out);
+        this.analysisCommands = new AnalysisCommands(ctx, out);
         watch(ctx.generator());
     }
 
@@ -210,6 +212,7 @@ public final class CLIHandler {
         out.println("  " + RECIPE_LIST_USAGE);
         out.println("  " + RECIPE_SHOW_USAGE);
         out.println("  " + RECIPE_SCALE_USAGE);
+        out.println("  " + AnalysisCommands.RECOMMEND_USAGE + "   (--explain adds AI re-ranking)");
         out.println("  " + PLAN_NEW_USAGE);
         out.println("  " + PLAN_SET_USAGE + "   (slot: breakfast, lunch, dinner, snack)");
         out.println("  " + PLAN_CLEAR_USAGE);
@@ -218,6 +221,7 @@ public final class CLIHandler {
         out.println("  " + PlanGenerationCommands.GENERATE_USAGE);
         out.println("      (rule-based, no AI; --replace overwrites a plan that has meals and cannot be undone)");
         out.println("  plan strategies");
+        out.println("  " + AnalysisCommands.NUTRITION_USAGE + "   (--explain adds AI commentary)");
         out.println("  profile show");
         out.println("  " + ProfileCommands.DIET_USAGE);
         out.println("  " + ProfileCommands.ALLERGY_USAGE);
@@ -330,6 +334,7 @@ public final class CLIHandler {
             case "list" -> recipeList(rest);
             case "show" -> recipeShow(rest);
             case "scale" -> recipeScale(rest);
+            case "recommend" -> analysisCommands.recommend(rest);
             case "generate" -> agentCommands.generate(rest);
             case "pending" -> agentCommands.pending();
             case "discard" -> agentCommands.discard();
@@ -422,6 +427,7 @@ public final class CLIHandler {
             case "check" -> planCheck();
             case "generate" -> planGenerationCommands.generate(rest);
             case "strategies" -> planGenerationCommands.strategies(rest);
+            case "nutrition" -> analysisCommands.nutrition(rest);
             default -> throw new UsageException(PLAN_USAGE);
         }
     }

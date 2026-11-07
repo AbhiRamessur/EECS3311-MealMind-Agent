@@ -13,7 +13,10 @@ import com.mealmind.llm.LlmException;
 import com.mealmind.llm.LlmRequest;
 import com.mealmind.llm.LlmResponse;
 import com.mealmind.llm.TokenUsage;
+import com.mealmind.model.Ingredient;
 import com.mealmind.model.MealType;
+import com.mealmind.model.Recipe;
+import com.mealmind.model.Unit;
 import com.mealmind.shopping.ShoppingListFormatter;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -1071,5 +1074,166 @@ class CLIHandlerTest {
         assertFalse(before.equals(after), after);
         assertEquals(ShoppingListFormatter.toText(ctx.generator().getCurrent()), after);
         assertFalse(ctx.generator().getCurrent().getItems().isEmpty());
+    }
+
+    // ---- Commit 14: nutrition analysis and recommendations ----
+
+    private static final String COMMENTARY = "{\"commentary\": \"You reach about half of your calorie target; add a hearty lunch.\"}";
+
+    @Test
+    void planNutritionOnAnEmptyPlan() {
+        assertEquals(List.of("No meals planned; nothing to analyze."), run("plan nutrition").lines().toList());
+        assertEquals(List.of("No meals planned; nothing to analyze."), run("plan nutrition --explain").lines().toList());
+    }
+
+    @Test
+    void planNutritionAfterPlanSetPrintsDayTotalsAverageAndTargets() {
+        run("profile update --calories 2000 --protein 100", "plan set 1 dinner R103");
+
+        String output = run("plan nutrition");
+
+        assertContains(output, "Nutrition summary");
+        assertContains(output, "Day 1: 1 meal, ");
+        assertContains(output, "Totals (1 meal planned, 28 slots): ");
+        assertContains(output, "Daily average (1 day with meals): ");
+        assertContains(output, "Calories: ");
+        assertContains(output, " of 2000 kcal per day (");
+        assertContains(output, " of 100.0 g per day (");
+        assertFalse(output.contains("Nutritional data unavailable"), output);
+    }
+
+    @Test
+    void planNutritionAfterGenerationReportsFourteenMeals() {
+        run("plan generate");
+
+        assertContains(run("plan nutrition"), "Totals (14 meals planned, 28 slots)");
+    }
+
+    @Test
+    void planNutritionFlagsIngredientsWithoutNutritionData() {
+        ctx.recipeBook().put(new Recipe("X1", "Mystery Stew", 1, 10, List.of("Cook"),
+                List.of(new Ingredient("Mystery sauce", 50, Unit.GRAM, 0, 0, 0, 0, 0.5),
+                        new Ingredient("Rice", 100, Unit.GRAM, 130, 3, 28, 0, 0.5))));
+        run("plan set 1 lunch X1");
+
+        assertContains(run("plan nutrition"),
+                "Nutritional data unavailable for: Mystery sauce (excluded from exact figures: they may be zero or missing)");
+    }
+
+    @Test
+    void planNutritionExplainPrintsAiCommentary() {
+        run("plan set 1 dinner R103");
+        ScriptedAiClient client = useScriptedAi().reply(COMMENTARY);
+
+        String output = run("plan nutrition --explain");
+
+        assertContains(output, "Nutrition summary");
+        assertContains(output, "[agent] Asking the model (call 1)");
+        assertContains(output, "AI commentary: You reach about half of your calorie target; add a hearty lunch.");
+        assertTrue(output.indexOf("Nutrition summary") < output.indexOf("AI commentary:"));
+        assertEquals(1, client.requests.size());
+    }
+
+    @Test
+    void planNutritionExplainWithAiDisabledFallsBackOnce() {
+        run("plan set 1 dinner R103");
+
+        String output = run("plan nutrition --explain");
+
+        assertContains(output, "Nutrition summary");
+        assertEquals(1, output.split("AI explanation unavailable: AI features are disabled: ", -1).length - 1, output);
+        assertFalse(output.contains("[agent]"), output);
+        assertContains(run("plan nutrition --verbose"), "Usage: plan nutrition [--explain]");
+    }
+
+    @Test
+    void recipeRecommendPrintsANumberedList() {
+        String output = run("recipe recommend");
+
+        assertContains(output, "Note: Pantry is empty; ranking uses your ratings and favorites only.");
+        assertContains(output, "1. R101 Chicken Stir-Fry - Covers 0% of your pantry;");
+        assertContains(output, "5. R105 ");
+        assertFalse(output.contains("6. "), output);
+    }
+
+    @Test
+    void recipeRecommendNeverListsMeatForAVegetarian() {
+        run("profile diet vegetarian");
+
+        String output = run("recipe recommend --limit 10");
+
+        for (String meat : new String[] {"R101", "R104", "R106"}) {
+            assertFalse(output.contains(meat), meat);
+        }
+        assertContains(output, "7. ");
+    }
+
+    @Test
+    void pantryFirstChangesTheOrder() {
+        run("pantry add \"Red lentils\" 400 g", "recipe favorite --id R105");
+
+        assertContains(run("recipe recommend"), "1. R105 Black Bean Tacos - Covers 0% of your pantry;");
+        assertContains(run("recipe recommend --pantry-first"), "1. R103 Red Lentil Soup - Covers 13% of your pantry;");
+    }
+
+    @Test
+    void maxTimeIsRelaxedWithANote() {
+        String output = run("recipe recommend --max-time 1 --limit 2");
+
+        assertContains(output, "Note: No recipe fits 1 minutes; showing the closest matches instead.");
+        assertContains(output, "1. R109 ");
+        assertContains(output, "2. R110 ");
+    }
+
+    @Test
+    void recipeRecommendUsageErrors() {
+        String usage = "Usage: recipe recommend [--pantry-first] [--max-time <n>] [--limit <n>] [--explain]";
+        for (String bad : new String[] {"recipe recommend --limit 0", "recipe recommend --limit 11", "recipe recommend --max-time abc",
+                "recipe recommend --max-time 0", "recipe recommend soup", "recipe recommend --explain --explain"}) {
+            assertContains(run(bad), usage);
+        }
+    }
+
+    @Test
+    void recommendExplainReordersWithAScriptedRanking() {
+        useScriptedAi().reply("{\"ranking\": [{\"id\": \"R103\", \"reason\": \"Warm and filling\"}]}");
+
+        String output = run("recipe recommend --limit 3 --explain");
+
+        String[] parts = output.split("AI-ranked recommendations:\\R");
+        assertEquals(2, parts.length, output);
+        assertContains(parts[0], "1. R101 ");
+        assertContains(parts[1], "1. R103 Red Lentil Soup - Warm and filling");
+        assertContains(parts[1], "2. R101 ");
+        assertContains(parts[1], "Note: Ranked with AI assistance");
+    }
+
+    @Test
+    void recommendExplainWithInvalidRepliesFallsBack() {
+        useScriptedAi().reply("{\"ranking\": [{\"id\": \"R999\", \"reason\": \"x\"}]}", "nope", "{\"ranking\": []}");
+
+        String output = run("recipe recommend --limit 3 --explain");
+
+        assertContains(output, "1. R101 ");
+        assertFalse(output.contains("AI-ranked recommendations:"), output);
+        assertEquals(1, output.split("AI explanation unavailable: The model could not produce a valid reply", -1).length - 1, output);
+    }
+
+    @Test
+    void recommendExplainWithAiDisabledFallsBackOnce() {
+        String output = run("recipe recommend --explain");
+
+        assertContains(output, "1. R101 ");
+        assertEquals(1, output.split("AI explanation unavailable: AI features are disabled: Not configured", -1).length - 1, output);
+        assertFalse(output.contains("[agent]"), output);
+    }
+
+    @Test
+    void helpAndUsageMentionAnalysisCommands() {
+        String help = run("help");
+        assertContains(help, "plan nutrition [--explain]");
+        assertContains(help, "recipe recommend [--pantry-first] [--max-time <n>] [--limit <n>] [--explain]");
+        assertContains(run("recipe"), "|recommend ...");
+        assertContains(run("plan nutrition --verbose"), "Usage: plan nutrition [--explain]");
     }
 }
