@@ -2,6 +2,12 @@ package com.mealmind.gui;
 
 import com.mealmind.app.ApplicationContext;
 import com.mealmind.gui.logic.RecipeRow;
+import com.mealmind.gui.logic.ShoppingRow;
+import com.mealmind.gui.logic.TextExport;
+import com.mealmind.model.MealPlan;
+import com.mealmind.model.MealType;
+import com.mealmind.shopping.ShoppingItem;
+import com.mealmind.shopping.ShoppingListFormatter;
 import com.mealmind.model.Unit;
 import com.mealmind.profile.DietType;
 import java.io.IOException;
@@ -21,6 +27,8 @@ import java.util.function.BooleanSupplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javafx.application.Platform;
+import javafx.scene.control.Label;
+import javafx.scene.layout.HBox;
 
 /**
  * {@code Main --gui-selftest}: drives the real controls of a {@link MainController} (never shown) on the
@@ -85,7 +93,7 @@ public final class GuiSelfTest {
             CompletableFuture<String> failed = new CompletableFuture<>();
             Platform.runLater(() -> {
                 try {
-                    failed.complete(checks(ctx, out));
+                    failed.complete(checks(ctx, dir, out));
                 } catch (RuntimeException e) {
                     failed.complete("unexpected error " + e);
                 }
@@ -109,7 +117,7 @@ public final class GuiSelfTest {
     }
 
     /** Runs every check on the FX thread; returns the first failing check's name, or null. */
-    private static String checks(ApplicationContext ctx, PrintStream out) {
+    private static String checks(ApplicationContext ctx, Path dir, PrintStream out) {
         try (MainController controller = new MainController(ctx, null)) {
             ProfileTab profile = controller.profileTab();
             PantryTab pantry = controller.pantryTab();
@@ -143,7 +151,10 @@ public final class GuiSelfTest {
                     return text.startsWith("AI") && !KEY_LIKE.matcher(text).find();
                 });
             }
-            return failure == null ? recipeChecks(ctx, controller, out) : failure;
+            if (failure == null) {
+                failure = recipeChecks(ctx, controller, out);
+            }
+            return failure == null ? planChecks(ctx, controller, dir, out) : failure;
         }
     }
 
@@ -204,8 +215,121 @@ public final class GuiSelfTest {
                     GeneratePane generate = recipes.generate();
                     return generate.generateButton().isDisabled() && generate.generateButton().getTooltip() != null
                             && generate.generateButton().getTooltip().getText().contains("AI features")
-                            && generate.saveButton().isDisabled() && generate.discardButton().isDisabled();
+                            && generate.saveButton().isDisabled() && generate.discardButton().isDisabled()
+                            && generate.unavailableLabel().isVisible()
+                            && generate.unavailableLabel().getText().startsWith("AI unavailable: ");
                 }));
+        for (Check check : checks) {
+            String failure = check(out, check.name(), check.test());
+            if (failure != null) {
+                return failure;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Plan, Shopping List and Nutrition checks (deterministic, no AI). The confirmation dialog for replacing a
+     * plan is answered through {@link PlanTab#confirmReplacementsWith}, and the export is written to a file in the
+     * temporary directory through {@link ShoppingTab#exportTo}, bypassing the file dialog.
+     */
+    private static String planChecks(ApplicationContext ctx, MainController controller, Path dir, PrintStream out) {
+        PlanTab plan = controller.planTab();
+        PlanGridView grid = plan.grid();
+        PlanSlotEditor editor = plan.editor();
+        ShoppingTab shopping = controller.shoppingTab();
+        NutritionTab nutrition = controller.nutritionTab();
+        int[] confirmations = {0};
+        boolean[] answer = {true};
+        plan.confirmReplacementsWith(message -> {
+            confirmations[0]++;
+            return answer[0];
+        });
+        List<Check> checks = List.of(
+                new Check("plan tab shows 7 empty days", () -> grid.rowCount() == 7 && grid.filledCount() == 0),
+                new Check("generating a 3-day budget plan fills lunch and dinner", () -> {
+                    plan.generateBar().daysField().setText("3");
+                    plan.generateBar().strategyChoice().getItems().stream().filter(o -> o.id().equals("budget"))
+                            .findFirst().ifPresent(plan.generateBar().strategyChoice()::setValue);
+                    plan.generateBar().generateButton().fire();
+                    return ctx.plan().getNumberOfDays() == 3 && grid.rowCount() == 3 && grid.filledCount() == 6
+                            && confirmations[0] == 0;
+                }),
+                new Check("replacing a plan with meals asks first (no keeps it, yes replaces it)", () -> {
+                    MealPlan before = ctx.plan();
+                    answer[0] = false;
+                    plan.generateBar().generateButton().fire();
+                    boolean kept = ctx.plan() == before && confirmations[0] == 1;
+                    answer[0] = true;
+                    plan.generateBar().generateButton().fire();
+                    return kept && ctx.plan() != before && confirmations[0] == 2 && grid.filledCount() == 6;
+                }),
+                new Check("Clear slot empties a filled cell and Undo restores it", () -> {
+                    grid.select(1, MealType.LUNCH);
+                    editor.clearSlotButton().fire();
+                    boolean cleared = ctx.plan().getMeal(1, MealType.LUNCH).isEmpty() && grid.filledCount() == 5;
+                    controller.toolBar().undoButton().fire();
+                    return cleared && ctx.plan().getMeal(1, MealType.LUNCH).isPresent() && grid.filledCount() == 6;
+                }),
+                new Check("Set meal puts R103 in Day 1 Breakfast and Undo reverts it", () -> {
+                    grid.select(1, MealType.BREAKFAST);
+                    editor.recipeChoice().setValue("R103");
+                    editor.servingsField().setText("");
+                    editor.setMealButton().fire();
+                    boolean set = ctx.plan().getMeal(1, MealType.BREAKFAST).map(m -> m.getRecipes().get(0).getId())
+                            .orElse("").equals("R103") && grid.cell(1, MealType.BREAKFAST).getText().startsWith("Red Lentil Soup");
+                    controller.toolBar().undoButton().fire();
+                    return set && ctx.plan().getMeal(1, MealType.BREAKFAST).isEmpty();
+                }),
+                new Check("a meat recipe is refused for the vegetarian profile", () -> {
+                    grid.select(2, MealType.BREAKFAST);
+                    editor.recipeChoice().setValue("R101");
+                    editor.setMealButton().fire();
+                    return ctx.plan().getMeal(2, MealType.BREAKFAST).isEmpty()
+                            && editor.resultLabel().getText().startsWith("Refused: ");
+                }),
+                new Check("shopping list lists items and follows a pantry add", () -> {
+                    List<ShoppingItem> items = ctx.generator().getCurrent().getItems();
+                    if (items.isEmpty() || shopping.table().getItems().size() != items.size()) {
+                        return false;
+                    }
+                    ShoppingItem first = items.get(0);
+                    PantryTab pantry = controller.pantryTab();
+                    pantry.nameField().setText(first.getName());
+                    pantry.quantityField().setText("100000");
+                    pantry.unitChoice().setValue(first.getUnit());
+                    pantry.addButton().fire();
+                    return shopping.table().getItems().size() == items.size() - 1
+                            && shopping.table().getItems().stream().noneMatch(r -> r.name().equals(first.getName()));
+                }),
+                new Check("a checked row stays checked after a refresh", () -> {
+                    ShoppingRow row = shopping.table().getItems().get(0);
+                    shopping.toggle(row);
+                    shopping.refresh();
+                    return shopping.table().getItems().stream().filter(r -> r.key().equals(row.key())).allMatch(ShoppingRow::checked);
+                }),
+                new Check("export writes the shopping list text", () -> {
+                    Path file = dir.resolve("export").resolve(TextExport.defaultFileName());
+                    shopping.exportTo(file);
+                    try {
+                        return Files.readString(file).equals(ShoppingListFormatter.toText(ctx.generator().getCurrent()));
+                    } catch (IOException e) {
+                        return false;
+                    }
+                }),
+                new Check("nutrition shows day lines and a calorie progress bar", () -> {
+                    controller.profileTab().caloriesField().setText("2000");
+                    controller.profileTab().applyButton().fire();
+                    boolean dayLine = nutrition.figures().getChildren().stream()
+                            .anyMatch(n -> n instanceof Label label && label.getText().startsWith("Day 1: "));
+                    return dayLine && nutrition.bars().getChildren().size() == 1
+                            && ((HBox) nutrition.bars().getChildren().get(0)).getChildren().stream()
+                            .anyMatch(n -> n instanceof Label label && label.getText().startsWith("Calories: "));
+                }),
+                new Check("AI buttons on Plan and Nutrition are disabled with visible reasons", () ->
+                        plan.chat().sendButton().isDisabled() && plan.chat().unavailableLabel().isVisible()
+                                && plan.chat().unavailableLabel().getText().startsWith("AI unavailable: ")
+                                && nutrition.explainButton().isDisabled() && nutrition.unavailableLabel().isVisible()));
         for (Check check : checks) {
             String failure = check(out, check.name(), check.test());
             if (failure != null) {

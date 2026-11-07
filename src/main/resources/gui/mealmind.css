@@ -108,3 +108,26 @@
     -fx-font-family: "Monospaced";
     -fx-font-size: 12px;
 }
+
+/* Plan, Shopping List and Nutrition tabs */
+
+.plan-cell-empty {
+    -fx-text-fill: #8a919c;
+}
+
+.plan-cell-filled {
+    -fx-font-weight: bold;
+}
+
+.table-row-cell.shopping-checked .text {
+    -fx-strikethrough: true;
+    -fx-fill: #8a919c;
+}
+
+.progress-ok .bar {
+    -fx-background-color: #3b8a4f;
+}
+
+.progress-over .bar {
+    -fx-background-color: #c0392b;
+}

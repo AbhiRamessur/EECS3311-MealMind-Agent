@@ -40,6 +40,7 @@ final class GeneratePane extends VBox {
     private final Button generate = new Button("Generate");
     private final HBox working = new HBox(6, new ProgressIndicator(), new Label("Working..."));
     private final AgentActivityPanel activity;
+    private final AiUnavailableLabel unavailable;
     private final Label title = new Label();
     private final TextArea preview = new TextArea();
     private final Label banner = new Label();
@@ -54,6 +55,7 @@ final class GeneratePane extends VBox {
         this.status = Objects.requireNonNull(status, "status");
         this.busy = Objects.requireNonNull(busy, "busy");
         activity = new AgentActivityPanel(ui);
+        unavailable = new AiUnavailableLabel(ctx);
         prompt.setPromptText("Describe the recipe you want");
         HBox.setHgrow(prompt, Priority.ALWAYS);
         Label promptLabel = new Label("Request");
@@ -70,7 +72,7 @@ final class GeneratePane extends VBox {
         preview.setWrapText(true);
         preview.setPrefRowCount(10);
         banner.setWrapText(true);
-        getChildren().addAll(new HBox(8, promptLabel, prompt, generate, working), activity, title, preview, banner,
+        getChildren().addAll(new HBox(8, promptLabel, prompt, generate, working, unavailable), activity, title, preview, banner,
                 new HBox(8, save, discard));
         VBox.setVgrow(preview, Priority.ALWAYS);
         getStyleClass().add("tab-content");
@@ -94,6 +96,7 @@ final class GeneratePane extends VBox {
 
     /** Enables or disables Generate from the current AI availability. */
     void refreshAi() {
+        unavailable.update();
         String reason = AiAvailability.disabledReason(ctx);
         generate.setTooltip(new Tooltip(reason.isEmpty() ? "Ask the AI agent for a recipe (paid API calls)"
                 : AiAvailability.tooltip(reason)));
@@ -173,6 +176,10 @@ final class GeneratePane extends VBox {
 
     Label banner() {
         return banner;
+    }
+
+    AiUnavailableLabel unavailableLabel() {
+        return unavailable;
     }
 
     AgentActivityPanel activity() {

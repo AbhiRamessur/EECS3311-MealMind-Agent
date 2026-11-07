@@ -514,7 +514,7 @@ public final class CLIHandler {
      * Describes a meal as its recipes with servings, e.g. {@code "Chicken Stir-Fry (2 servings)"}, prefixed
      * by the meal's label when that label says something extra (it is not the slot name or the recipe name).
      */
-    private static String describe(Meal meal) {
+    public static String describe(Meal meal) {
         String names = meal.getRecipes().isEmpty()
                 ? meal.getIngredients().stream().map(Ingredient::getName).collect(Collectors.joining(", "))
                 : meal.getRecipes().stream().map(Recipe::getName).collect(Collectors.joining(", "));

@@ -49,6 +49,7 @@ final class RecommendPane extends VBox {
     private final Label notes = new Label();
     private final TableView<RecommendRow> table = new TableView<>();
     private final AgentActivityPanel activity;
+    private final AiUnavailableLabel unavailable;
 
     RecommendPane(ApplicationContext ctx, BackgroundRunner runner, UiThread ui, BiConsumer<String, Boolean> status,
                   BusyFlag busy, Consumer<String> onPick) {
@@ -58,6 +59,7 @@ final class RecommendPane extends VBox {
         this.status = Objects.requireNonNull(status, "status");
         this.busy = Objects.requireNonNull(busy, "busy");
         activity = new AgentActivityPanel(ui);
+        unavailable = new AiUnavailableLabel(ctx);
         maxMinutes.setPromptText("any");
         maxMinutes.setPrefColumnCount(4);
         limit.setPrefColumnCount(3);
@@ -79,7 +81,7 @@ final class RecommendPane extends VBox {
         maxLabel.setLabelFor(maxMinutes);
         Label limitLabel = new Label("Limit");
         limitLabel.setLabelFor(limit);
-        getChildren().addAll(new HBox(8, pantryFirst, maxLabel, maxMinutes, limitLabel, limit, explain, recommend),
+        getChildren().addAll(new HBox(8, pantryFirst, maxLabel, maxMinutes, limitLabel, limit, explain, recommend, unavailable),
                 heading, notes, table, activity);
         VBox.setVgrow(table, Priority.ALWAYS);
         getStyleClass().add("tab-content");
@@ -96,6 +98,7 @@ final class RecommendPane extends VBox {
 
     /** Enables or disables "Explain with AI" from the current AI availability. */
     void refreshAi() {
+        unavailable.update();
         String reason = AiAvailability.disabledReason(ctx);
         if (!reason.isEmpty()) {
             explain.setSelected(false);
@@ -171,6 +174,10 @@ final class RecommendPane extends VBox {
 
     Label heading() {
         return heading;
+    }
+
+    AiUnavailableLabel unavailableLabel() {
+        return unavailable;
     }
 
     AgentActivityPanel activity() {

@@ -3,7 +3,9 @@ package com.mealmind.gui;
 import com.mealmind.app.ApplicationContext;
 import com.mealmind.gui.logic.AiStatusModel;
 import com.mealmind.gui.logic.BackgroundRunner;
+import com.mealmind.gui.logic.BusyFlag;
 import com.mealmind.gui.logic.ObserverBinding;
+import com.mealmind.gui.logic.PlanBindings;
 import com.mealmind.gui.logic.StatusMessages;
 import com.mealmind.gui.logic.UiThread;
 import com.mealmind.gui.logic.UndoRedoModel;
@@ -22,7 +24,7 @@ import javafx.scene.layout.Region;
 
 /**
  * The main window's controller (Stage 1 {@code MainController}): a toolbar with Undo/Redo and the AI
- * status, a tab pane with the Profile, Pantry and Recipes tabs, and a status bar. Every view is subscribed to its
+ * status, a tab pane with the Profile, Pantry, Recipes, Plan, Shopping List and Nutrition tabs, and a status bar. Every view is subscribed to its
  * model through an {@link ObserverBinding} on the FX thread; {@link #close()} unsubscribes them all.
  *
  * <p>It works on the same {@link ApplicationContext} as the CLI: the same models, commands and history.
@@ -38,6 +40,10 @@ public final class MainController implements AutoCloseable {
     private final ProfileTab profileTab;
     private final PantryTab pantryTab;
     private final RecipesTab recipesTab;
+    private final PlanTab planTab;
+    private final ShoppingTab shoppingTab;
+    private final NutritionTab nutritionTab;
+    private final PlanBindings planBindings;
     private final BorderPane root = new BorderPane();
 
     /**
@@ -71,12 +77,27 @@ public final class MainController implements AutoCloseable {
         bindings.add(ObserverBinding.bind(ctx.agent(), ui, recipesTab::refreshPending));
         bindings.add(ObserverBinding.bind(ctx.llm(), ui, recipesTab::refreshAi));
 
+        // The plan and shopping-list generator are replaced by ctx.newPlan, so their bindings are re-pointed.
+        planBindings = new PlanBindings(ctx, ui);
+        BusyFlag planAi = new BusyFlag();
+        planTab = new PlanTab(ctx, background, ui, this::showStatus, planAi, planBindings::repoint);
+        shoppingTab = new ShoppingTab(ctx, this::showStatus);
+        nutritionTab = new NutritionTab(ctx, background, ui, this::showStatus, planAi);
+        planBindings.onPlanChange(planTab::refresh);
+        planBindings.onPlanChange(nutritionTab::refresh);
+        planBindings.onShoppingChange(shoppingTab::refresh);
+        bindings.add(ObserverBinding.bind(ctx.profile(), ui, planTab::refresh));
+        bindings.add(ObserverBinding.bind(ctx.profile(), ui, nutritionTab::refresh));
+        bindings.add(ObserverBinding.bind(ctx.recipeBook(), ui, planTab::refreshRecipes));
+        bindings.add(ObserverBinding.bind(ctx.llm(), ui, planTab::refreshAi));
+        bindings.add(ObserverBinding.bind(ctx.llm(), ui, nutritionTab::refreshAi));
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox top = new HBox(8, toolBar, spacer, aiStatus);
         top.setAlignment(Pos.CENTER_LEFT);
         top.getStyleClass().add("top-bar");
-        TabPane tabs = new TabPane(profileTab, pantryTab, recipesTab);
+        TabPane tabs = new TabPane(profileTab, pantryTab, recipesTab, planTab, shoppingTab, nutritionTab);
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         statusBar.getStyleClass().add("status-bar");
         statusBar.setMaxWidth(Double.MAX_VALUE);
@@ -135,6 +156,7 @@ public final class MainController implements AutoCloseable {
     public void close() {
         bindings.forEach(ObserverBinding::close);
         bindings.clear();
+        planBindings.close();
         background.close();
     }
 
@@ -152,6 +174,18 @@ public final class MainController implements AutoCloseable {
 
     RecipesTab recipesTab() {
         return recipesTab;
+    }
+
+    PlanTab planTab() {
+        return planTab;
+    }
+
+    ShoppingTab shoppingTab() {
+        return shoppingTab;
+    }
+
+    NutritionTab nutritionTab() {
+        return nutritionTab;
     }
 
     Label aiStatusLabel() {

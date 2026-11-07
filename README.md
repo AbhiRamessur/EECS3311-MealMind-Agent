@@ -286,7 +286,7 @@ The window contains:
 - a **toolbar** with **Undo** and **Redo** buttons (labelled with the next action, also Ctrl+Z / Ctrl+Y) and, on the right, the **AI status** (provider and model, or why AI is disabled; nothing else from the configuration is shown);
 - a **Profile** tab: diet, allergens, daily targets, weekly budget and household servings. Edits stay in the form until **Apply**; errors appear next to the field with the same messages as the CLI; **Reset** reloads the saved profile;
 - a **Pantry** tab: a table of items (expired rows red, items expiring within 3 days amber), an add form (name, quantity, unit, optional expiry date) and **Remove Selected**;
-- a **Recipes** tab (see below);
+- a **Recipes** tab, and **Plan**, **Shopping List** and **Nutrition** tabs (see below);
 - a status bar with the result of the last action.
 
 The GUI is a thin front end over the same session objects as the CLI: adding or removing a pantry item runs the same undoable command, so **Undo** reverts it exactly like `undo` in the CLI, and every change is saved to the same files (`profile.json`, `pantry.json`). One running program uses one front end; both read the same files on the next start.
@@ -314,9 +314,25 @@ The left side lists every recipe (id, name, servings, prep time, kcal per servin
 What can be undone (same as the CLI): saving, scaling and removing recipes (and pantry changes) go through **Undo**/**Redo**; ratings, favorites and profile edits are settings and are not undoable.
 
 Limitations:
-- The Plan, Shopping List and Nutrition tabs and natural-language plan editing are CLI-only until later commits.
 - The GUI is English-only.
 - No screenshots are included yet.
+
+#### Plan, Shopping List and Nutrition tabs
+**Plan** shows the current plan as a grid: one row per day (Day 1 is shown as Monday), one column per meal slot, and each day's calories and cost, with the plan totals and any warnings below it (safety problems are highlighted).
+- **Generate (rule-based)** fills the whole plan from the recipe book with the chosen strategy, days, slots and optional budget. It works offline with no AI. If the plan already has meals you are asked first, because replacing the whole plan **cannot be undone** (it clears the undo history, as `plan generate --replace` does). **New plan** starts an empty plan the same way.
+- Click a cell, then use **Edit selected slot**: choose a recipe (and optionally servings) and press **Set meal**, or **Clear slot**. These run the same safety check as `plan set` (an unsafe recipe is refused and nothing changes) and **can be undone** with Undo.
+- **Ask the planner** sends one plain-English change to the AI ("Swap Tuesday dinner for a 15-minute meal"). The AI only interprets it; MealMind checks the choice and applies it as an undoable change. Day 1 is Monday. The agent's activity appears in the log below it.
+
+**Shopping List** lists what to buy for the current plan, grouped by store section, and updates by itself when the plan or the pantry changes. Tick **Got it** to check items off; those marks last only for this session. **Copy as text** puts the list on the clipboard and **Export .txt** saves it (the dialog suggests `shopping-list.txt`). An empty list says "Nothing to buy."
+
+**Nutrition** shows the same figures as `plan nutrition` (per day, totals, daily average), one progress bar per daily target set in your profile (green below 110%, red from 110%; the text keeps the real percentage), and the ingredients without nutrition data. **Explain with AI** adds a short AI commentary on these figures; the numbers themselves always come from MealMind.
+
+**Ask the planner** and **Explain with AI** (like Generate and Explain with AI on the Recipes tab) need AI configured and make paid API calls; without AI they are disabled and a visible "AI unavailable: <reason>" label says why. Everything else works offline.
+
+Limitations:
+- No drag and drop: meals are assigned through the slot editor.
+- The meal plan and the check-off marks are not saved between sessions (the plan is in memory only, as in the CLI).
+- No screenshots are included yet; the GUI is English-only.
 
 ### AI configuration
 MealMind works without any AI provider: pantry, recipes, scaling, plans, profile checks and the shopping list are all deterministic. If AI is not configured, the CLI prints one line at startup ("AI features are disabled: …") and carries on. Startup never contacts the network.
