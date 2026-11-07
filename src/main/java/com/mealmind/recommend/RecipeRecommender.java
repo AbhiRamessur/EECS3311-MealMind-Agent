@@ -131,9 +131,9 @@ public final class RecipeRecommender {
                 reason(c, favorite, rating));
     }
 
-    /** E.g. "Covers 50% of your pantry; missing: Onion, Garlic, Salt and 2 more; favorite; rated 4/5; 20 min". */
+    /** E.g. "Pantry covers 50% of the recipe; missing: Onion, Garlic, Salt and 2 more; favorite; rated 4/5; 20 min". */
     private static String reason(Candidate c, boolean favorite, Integer rating) {
-        StringBuilder reason = new StringBuilder("Covers ").append(c.coverage().percent()).append("% of your pantry");
+        StringBuilder reason = new StringBuilder("Pantry covers ").append(c.coverage().percent()).append("% of the recipe");
         List<String> missing = c.coverage().missing();
         if (!missing.isEmpty()) {
             reason.append("; missing: ")

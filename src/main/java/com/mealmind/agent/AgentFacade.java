@@ -4,7 +4,11 @@ import com.mealmind.command.CommandHistory;
 import com.mealmind.command.SaveRecipeCommand;
 import com.mealmind.llm.LlmErrorKind;
 import com.mealmind.llm.LlmException;
+import com.mealmind.llm.ChatMessage;
 import com.mealmind.llm.LlmService;
+import com.mealmind.llm.TokenUsage;
+import com.mealmind.llm.Role;
+import com.mealmind.model.MealPlan;
 import com.mealmind.model.ObservableSubject;
 import com.mealmind.model.Recipe;
 import com.mealmind.model.RecipeBook;
@@ -14,6 +18,7 @@ import com.mealmind.recommend.RecommendationResult;
 import com.mealmind.tools.ToolManager;
 import com.mealmind.validation.ConstraintValidator;
 import com.mealmind.validation.Violation;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -27,7 +32,8 @@ import java.util.stream.Collectors;
  * The <strong>Facade</strong> for every AI feature: the single entry point the user interfaces use.
  *
  * <p>Roles: Facade = {@code AgentFacade}; Subsystem = {@link AgentLoop}, {@link RecipeGenerator},
- * {@link NutritionCommentator}, {@link RecommendationRanker}, {@link PromptBuilder}, {@link RecipeDraftParser}, {@link LlmService}, {@link ToolManager},
+ * {@link NutritionCommentator}, {@link RecommendationRanker}, {@link PlanEditPrompt}, {@link PlanEditChecker},
+ * {@link PlanEditor}, {@link PromptBuilder}, {@link RecipeDraftParser}, {@link LlmService}, {@link ToolManager},
  * {@link ConstraintValidator} and {@link AgentMemory}; Clients = the CLI's command handler now and the
  * JavaFX controller later. Clients never touch the subsystem classes for AI features.
  *
@@ -38,6 +44,12 @@ import java.util.stream.Collectors;
  */
 public final class AgentFacade extends ObservableSubject {
 
+    /** Longest accepted plan-edit request, in characters. */
+    public static final int MAX_EDIT_LENGTH = 300;
+    /** Plan-edit budgets: 4 tool steps, 3 safety retries, 2 repairs, 10 calls, 800 tokens, temperature 0.2. */
+    public static final AgentLimits EDIT_LIMITS = new AgentLimits(4, 3, 2, 10, 800, 0.2);
+    private static final int HISTORY_MESSAGES = 6;
+
     private final LlmService llm;
     private final ConstraintValidator validator;
     private final RecipeBook recipes;
@@ -45,6 +57,10 @@ public final class AgentFacade extends ObservableSubject {
     private final UserProfile profile;
     private final NutritionCommentator nutritionCommentator;
     private final RecommendationRanker recommendationRanker;
+    private final ToolManager tools;
+    private final AgentMemory memory;
+    private final Supplier<List<String>> ratingNotes;
+    private final PlanEditor planEditor;
     private final AtomicBoolean busy = new AtomicBoolean();
     private volatile GeneratedRecipe pending;
 
@@ -86,6 +102,10 @@ public final class AgentFacade extends ObservableSubject {
         this.recipeGenerator = new RecipeGenerator(loop, validator, profile, memory, tools, limits, recipes, ratingNotes);
         this.nutritionCommentator = new NutritionCommentator(llm);
         this.recommendationRanker = new RecommendationRanker(llm);
+        this.tools = Objects.requireNonNull(tools, "tools");
+        this.memory = Objects.requireNonNull(memory, "memory");
+        this.ratingNotes = Objects.requireNonNull(ratingNotes, "ratingNotes");
+        this.planEditor = new PlanEditor(recipes, validator, profile);
     }
 
     /**
@@ -136,6 +156,79 @@ public final class AgentFacade extends ObservableSubject {
     public RecommendationResult rerankRecommendations(RecommendationResult result, Consumer<AgentEvent> activity) {
         Objects.requireNonNull(result, "result");
         return exclusive(() -> recommendationRanker.rerank(result, profile, activity));
+    }
+
+    /**
+     * Edits a plan from a natural-language request (F06). The model only <em>interprets</em> the request,
+     * using the read-only tools; {@link PlanEditChecker} validates each answer during the loop and
+     * {@link PlanEditor} re-checks safety and applies the change through an undoable command. A failed or
+     * refused edit never changes the plan. Memory records the request and outcome only when the edit was
+     * applied or a clarifying question was asked. Observers are not notified and the pending recipe is not touched.
+     *
+     * @param instruction what to change, at most {@value #MAX_EDIT_LENGTH} characters
+     * @param plan        the plan to edit (pass the current one; it can be replaced between calls)
+     * @param history     where the change is run, so it can be undone
+     * @param activity    receives agent activity events, or null
+     * @return the outcome
+     * @throws IllegalArgumentException if the instruction is blank or too long
+     * @throws IllegalStateException    if another request is already running
+     * @throws LlmException             {@link LlmErrorKind#UNAVAILABLE} at once when AI is not configured
+     * @throws AgentException           if no valid edit was produced within the budgets
+     */
+    public PlanEditResult editPlan(String instruction, MealPlan plan, CommandHistory history,
+                                   Consumer<AgentEvent> activity) {
+        Objects.requireNonNull(instruction, "instruction");
+        Objects.requireNonNull(plan, "plan");
+        Objects.requireNonNull(history, "history");
+        String request = instruction.trim();
+        if (request.isEmpty()) {
+            throw new IllegalArgumentException("Describe the change you want");
+        }
+        if (request.length() > MAX_EDIT_LENGTH) {
+            throw new IllegalArgumentException("The request is too long (at most " + MAX_EDIT_LENGTH + " characters)");
+        }
+        return exclusive(() -> runEdit(request, plan, history, activity));
+    }
+
+    private PlanEditResult runEdit(String request, MealPlan plan, CommandHistory history, Consumer<AgentEvent> activity) {
+        List<ChatMessage> seed = new ArrayList<>();
+        seed.add(ChatMessage.system(PlanEditPrompt.systemPrompt(profile, memory.facts(), ratingNotes.get(), tools,
+                EDIT_LIMITS)));
+        seed.addAll(recentHistory());
+        seed.add(ChatMessage.user(PlanEditPrompt.userMessage(request, plan)));
+        AgentLoop loop = new AgentLoop(llm, tools, EDIT_LIMITS);
+        AgentRun<PlanEditProposal> run = loop.run(seed, "edit", new PlanEditChecker(recipes, plan, validator), activity);
+
+        PlanEditResult result = switch (run.status()) {
+            case FAILED -> throw new AgentException(run.message());
+            case UNSAFE -> new PlanEditResult(EditOutcome.REFUSED,
+                    "No safe edit found after " + run.safetyRetries() + " attempts. The plan was not changed.",
+                    validator.validateAgainstBlacklists(run.value().orElseThrow().recipe()).getSafetyViolations()
+                            .stream().map(Violation::message).toList(), Optional.empty(), 0, 0, TokenUsage.ZERO);
+            case ACCEPTED -> planEditor.apply(run.value().orElseThrow(), plan, history);
+        };
+        if (result.outcome() != EditOutcome.REFUSED) {
+            memory.addUserMessage(request);
+            memory.addAssistantMessage(result.outcome() == EditOutcome.APPLIED
+                    ? "Applied: " + result.message() : "Asked: " + result.message());
+        }
+        return withCounters(result, run);
+    }
+
+    /** Copies the run's counters into a result built with zeros. */
+    private static PlanEditResult withCounters(PlanEditResult result, AgentRun<?> run) {
+        return new PlanEditResult(result.outcome(), result.message(), result.detail(), result.commandDescription(),
+                run.llmCalls(), run.toolSteps(), run.usage());
+    }
+
+    /** The last few remembered messages, starting with a user message (as in {@link RecipeGenerator}). */
+    private List<ChatMessage> recentHistory() {
+        List<ChatMessage> history = memory.history();
+        List<ChatMessage> recent = new ArrayList<>(history.subList(Math.max(0, history.size() - HISTORY_MESSAGES), history.size()));
+        if (!recent.isEmpty() && recent.get(0).role() == Role.ASSISTANT) {
+            recent.remove(0);
+        }
+        return recent;
     }
 
     /**

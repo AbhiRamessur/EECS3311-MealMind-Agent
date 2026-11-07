@@ -100,6 +100,8 @@ The meal plan is kept in memory for the session only. The ten sample recipes (R1
 | `plan generate [--days n] [--strategy id] [--slots lunch,dinner] [--budget n] [--replace]` | `plan generate --days 5 --strategy budget --budget 60` |
 | `plan strategies` | `plan strategies` |
 | `plan nutrition [--explain]` | `plan nutrition` |
+| `plan edit "<what to change>"` | `plan edit "Swap Tuesday dinner for a 15-minute quick meal"` |
+| `plan undo` / `plan redo` | `plan undo` (same as `undo` / `redo`) |
 | `profile show` | `profile show` |
 | `profile diet <omnivore\|vegetarian\|vegan\|pescatarian>` | `profile diet vegetarian` |
 | `profile allergy add\|remove "<name>"` | `profile allergy add "tree nuts"` |
@@ -235,8 +237,8 @@ Calories: 842 of 2000 kcal per day (42%)
 `recipe recommend` lists up to 5 recipes that are safe for your profile, ranked by your favorites and ratings first, then by how much of each recipe your pantry already covers. `--pantry-first` ranks by pantry coverage first, `--max-time 30` keeps recipes that take at most 30 minutes, and `--limit n` (1-10) changes how many are shown. Recipes rated 1-2 stars are left out while others are available. If nothing fits the time limit, the limit is relaxed and the quickest recipes are shown with a note; with an empty pantry the ranking uses only your ratings and favorites. Safety rules are never relaxed.
 ```
 mealmind> recipe recommend --pantry-first --limit 2
-1. R103 Red Lentil Soup - Covers 13% of your pantry; missing: Onion, Carrots, Garlic and 4 more; 40 min
-2. R109 Peanut Butter Banana Toast - Covers 0% of your pantry; missing: Whole wheat bread, Peanut butter, Banana and 1 more; 5 min
+1. R103 Red Lentil Soup - Pantry covers 13% of the recipe; missing: Onion, Carrots, Garlic and 4 more; 40 min
+2. R109 Peanut Butter Banana Toast - Pantry covers 0% of the recipe; missing: Whole wheat bread, Peanut butter, Banana and 1 more; 5 min
 ```
 `recipe recommend --explain` prints the same list and then an **AI-ranked** version: the AI may only reorder those recipes and write a short reason for each; it cannot add a recipe.
 
@@ -246,6 +248,24 @@ Limitations:
 - The nutrition values of AI-generated recipes are AI estimates, so their totals are estimates too.
 - An ingredient whose calories and macros are all 0 is flagged as "Nutritional data unavailable" unless its name is on a short list of genuinely zero-nutrition items (water, ice, salt, pepper, baking soda, baking powder, vinegar, spices, seasonings).
 - Safety keywords and pantry matching are name-based heuristics: they cannot see hidden ingredients, and a pantry item only counts when its name and unit match the recipe.
+
+#### Natural-language plan editing
+`plan edit` changes **one** meal in the current plan from a plain-English request (quotes are optional):
+```
+mealmind> plan edit Swap Tuesday dinner for a 15-minute quick meal
+mealmind> plan edit clear Monday lunch
+mealmind> plan edit use my favorite recipe for Wednesday breakfast, 3 servings
+```
+The AI only **interprets** the request: it may look things up with the read-only tools (for example `recipe_search` with a time limit to find a 15-minute meal) and then proposes one edit. MealMind checks that proposal itself: the recipe must exist in the recipe book and pass the diet and allergen check against your **current** profile, both when the AI proposes it and again right before it is applied. An unsafe or invalid choice is never applied: you see `Refused: ...` and `Plan unchanged.` Every applied edit goes through the undo history, so `undo` (or `plan undo`) reverts it and `redo` (or `plan redo`) reapplies it. Calorie and budget warnings are shown as `Warning: ...` but do not block.
+
+If the request is ambiguous ("change dinner") or asks for several changes at once, MealMind asks a clarifying question instead and changes nothing; answer with another `plan edit` command. Follow-up edits ("make that one vegetarian") use the conversation memory (`memory show`). Plans have day numbers, not dates: **Day 1 is Monday**, Day 2 is Tuesday, and so on.
+
+`plan edit` needs AI configured. Each edit can make several paid model calls, so use a provider account with a low spend limit. Without AI, or if the call fails, it prints one `Error: ...` line and the plan is not changed.
+
+Limitations:
+- One edit per request.
+- The AI may misread a request; that is why every change is undoable.
+- The safety check is keyword-based: it cannot see hidden ingredients and is not medical advice.
 
 ### AI configuration
 MealMind works without any AI provider: pantry, recipes, scaling, plans, profile checks and the shopping list are all deterministic. If AI is not configured, the CLI prints one line at startup ("AI features are disabled: …") and carries on. Startup never contacts the network.

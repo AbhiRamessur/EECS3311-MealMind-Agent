@@ -155,9 +155,9 @@ class RecipeRecommenderTest {
 
         List<Recommendation> items = recommend(true, null, 10).items();
 
-        assertEquals("Covers 100% of your pantry; favorite; rated 4/5; 30 min", items.get(0).reason());
-        assertEquals("Covers 50% of your pantry; missing: Beef; 60 min", items.get(1).reason());
-        assertEquals("Covers 0% of your pantry; missing: Rice, Cucumber, Tomato and 2 more; 15 min", items.get(3).reason());
+        assertEquals("Pantry covers 100% of the recipe; favorite; rated 4/5; 30 min", items.get(0).reason());
+        assertEquals("Pantry covers 50% of the recipe; missing: Beef; 60 min", items.get(1).reason());
+        assertEquals("Pantry covers 0% of the recipe; missing: Rice, Cucumber, Tomato and 2 more; 15 min", items.get(3).reason());
         assertEquals(List.of("Rice", "Cucumber", "Tomato", "Feta", "Olives"), items.get(3).missing());
         assertTrue(items.get(0).favorite());
         assertEquals(4, items.get(0).rating());

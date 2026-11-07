@@ -1151,7 +1151,7 @@ class CLIHandlerTest {
         String output = run("recipe recommend");
 
         assertContains(output, "Note: Pantry is empty; ranking uses your ratings and favorites only.");
-        assertContains(output, "1. R101 Chicken Stir-Fry - Covers 0% of your pantry;");
+        assertContains(output, "1. R101 Chicken Stir-Fry - Pantry covers 0% of the recipe;");
         assertContains(output, "5. R105 ");
         assertFalse(output.contains("6. "), output);
     }
@@ -1172,8 +1172,8 @@ class CLIHandlerTest {
     void pantryFirstChangesTheOrder() {
         run("pantry add \"Red lentils\" 400 g", "recipe favorite --id R105");
 
-        assertContains(run("recipe recommend"), "1. R105 Black Bean Tacos - Covers 0% of your pantry;");
-        assertContains(run("recipe recommend --pantry-first"), "1. R103 Red Lentil Soup - Covers 13% of your pantry;");
+        assertContains(run("recipe recommend"), "1. R105 Black Bean Tacos - Pantry covers 0% of the recipe;");
+        assertContains(run("recipe recommend --pantry-first"), "1. R103 Red Lentil Soup - Pantry covers 13% of the recipe;");
     }
 
     @Test
@@ -1235,5 +1235,121 @@ class CLIHandlerTest {
         assertContains(help, "recipe recommend [--pantry-first] [--max-time <n>] [--limit <n>] [--explain]");
         assertContains(run("recipe"), "|recommend ...");
         assertContains(run("plan nutrition --verbose"), "Usage: plan nutrition [--explain]");
+    }
+
+    // ---- Commit 15: natural-language plan editing ----
+
+    private static String editReply(String body) {
+        return "{\"edit\": " + body + "}";
+    }
+
+    private String dinnerOnDay(int day) {
+        return ctx.plan().getMeal(day, MealType.DINNER).orElseThrow().getRecipes().get(0).getId();
+    }
+
+    @Test
+    void planEditAppliesAScriptedReplaceAndUndoRestoresIt() {
+        run("plan generate --days 2");
+        String before = dinnerOnDay(2);
+        String target = before.equals("R110") ? "R109" : "R110";
+        useScriptedAi().reply(editReply("{\"action\": \"replace\", \"day\": 2, \"slot\": \"DINNER\", \"recipeId\": \""
+                + target + "\", \"explanation\": \"Ready in 5 minutes\"}"));
+
+        String output = run("plan edit make tuesday dinner quicker");
+
+        assertContains(output, "[agent] Asking the model (call 1)");
+        assertContains(output, "Edit applied: Replaced Day 2 DINNER with ");
+        assertContains(output, "Use 'undo' to revert.");
+        assertContains(output, "Agent: 1 model calls, 0 tool calls; tokens: 300 prompt + 120 completion");
+        assertEquals(target, dinnerOnDay(2));
+        assertContains(run("plan show"), ctx.recipeBook().get(target).orElseThrow().getName());
+
+        assertContains(run("undo"), "Undone: Replace Day 2 DINNER with ");
+        assertEquals(before, dinnerOnDay(2));
+        assertContains(run("plan redo"), "Redone: Replace Day 2 DINNER with ");
+        assertEquals(target, dinnerOnDay(2));
+        assertContains(run("plan undo"), "Undone: Replace Day 2 DINNER with ");
+        assertEquals(before, dinnerOnDay(2));
+        assertContains(run("plan undo"), "Nothing to undo.");
+        assertContains(run("plan redo"), "Redone:");
+    }
+
+    @Test
+    void planEditClarificationLeavesThePlanUnchanged() {
+        run("plan generate --days 2");
+        String before = run("plan show");
+        useScriptedAi().reply(editReply("{\"action\": \"clarify\", \"question\": \"Which day's dinner should I change?\"}"));
+
+        String output = run("plan edit change dinner");
+
+        assertContains(output, "Question: Which day's dinner should I change?");
+        assertContains(output, "Plan unchanged. Answer with another plan edit command.");
+        assertEquals(before, run("plan show"));
+    }
+
+    @Test
+    void unsafeOnlyScriptIsRefusedAndUndoSeesOnlyEarlierActions() {
+        run("profile diet vegetarian", "plan set 1 dinner R103");
+        ScriptedAiClient client = useScriptedAi();
+        for (int i = 0; i < 4; i++) {
+            client.reply(editReply("{\"action\": \"replace\", \"day\": 1, \"slot\": \"DINNER\", \"recipeId\": \"R101\"}"));
+        }
+
+        String output = run("plan edit put chicken on monday dinner");
+
+        assertContains(output, "Refused: Chicken breast is not allowed for a vegetarian diet");
+        assertContains(output, "Plan unchanged.");
+        assertFalse(output.contains("Edit applied"), output);
+        assertEquals("R103", dinnerOnDay(1));
+        assertContains(run("undo"), "Undone: Replace Day 1 DINNER with Red Lentil Soup");
+        assertContains(run("undo"), "Nothing to undo.");
+    }
+
+    @Test
+    void planEditWithoutWordsPrintsUsage() {
+        assertContains(run("plan edit"), "Usage: plan edit \"<what to change>\"");
+    }
+
+    @Test
+    void planEditWithAiDisabledPrintsOneErrorAndNoActivity() {
+        run("plan set 1 dinner R103");
+
+        String output = run("plan edit swap monday dinner");
+
+        assertEquals(List.of("Error: AI features are disabled: Not configured"), output.lines().toList());
+        assertEquals("R103", dinnerOnDay(1));
+    }
+
+    @Test
+    void providerFailureIsPrintedOnceAndThePlanIsUnchanged() {
+        run("plan set 1 dinner R103");
+        ScriptedAiClient client = useScriptedAi();
+        client.failure = new LlmException(LlmErrorKind.SERVER_ERROR, "The AI service had an internal error (HTTP 500)", null);
+
+        String output = run("plan edit swap monday dinner");
+
+        assertEquals(1, output.split("internal error", -1).length - 1, output);
+        assertContains(output, "Error: The AI service had an internal error (HTTP 500)");
+        assertEquals("R103", dinnerOnDay(1));
+    }
+
+    @Test
+    void advisoryWarningsArePrinted() {
+        run("profile update --calories 800 --servings 5");
+        useScriptedAi().reply(editReply("{\"action\": \"replace\", \"day\": 1, \"slot\": \"DINNER\", \"recipeId\": \"R104\"}"));
+
+        String output = run("plan edit hearty dinner on monday");
+
+        assertContains(output, "Edit applied: Replaced Day 1 DINNER with Spaghetti Bolognese");
+        assertContains(output, "Warning: Day 1: ");
+        assertEquals(5, ctx.plan().getMeal(1, MealType.DINNER).orElseThrow().getRecipes().get(0).getServings());
+    }
+
+    @Test
+    void helpMentionsPlanEditing() {
+        String help = run("help");
+
+        assertContains(help, "plan edit \"<what to change>\"");
+        assertContains(help, "plan undo | plan redo");
     }
 }

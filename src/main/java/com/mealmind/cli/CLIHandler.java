@@ -1,6 +1,7 @@
 package com.mealmind.cli;
 
 import com.mealmind.agent.AgentException;
+import com.mealmind.agent.PlanMeals;
 import com.mealmind.agent.PreferenceNotes;
 import com.mealmind.app.ApplicationContext;
 import com.mealmind.command.AddPantryItemCommand;
@@ -89,6 +90,7 @@ public final class CLIHandler {
     private final PreferenceCommands preferenceCommands;
     private final PlanGenerationCommands planGenerationCommands;
     private final AnalysisCommands analysisCommands;
+    private final PlanEditCommands planEditCommands;
     private ShoppingListGenerator watchedGenerator;
 
     /**
@@ -112,6 +114,7 @@ public final class CLIHandler {
         this.preferenceCommands = new PreferenceCommands(ctx, out);
         this.planGenerationCommands = new PlanGenerationCommands(ctx, () -> watch(ctx.generator()), out);
         this.analysisCommands = new AnalysisCommands(ctx, out);
+        this.planEditCommands = new PlanEditCommands(ctx, out);
         watch(ctx.generator());
     }
 
@@ -222,6 +225,8 @@ public final class CLIHandler {
         out.println("      (rule-based, no AI; --replace overwrites a plan that has meals and cannot be undone)");
         out.println("  plan strategies");
         out.println("  " + AnalysisCommands.NUTRITION_USAGE + "   (--explain adds AI commentary)");
+        out.println("  " + PlanEditCommands.EDIT_USAGE + "   (AI interprets one change; undo reverts it)");
+        out.println("  plan undo | plan redo   (same as undo / redo)");
         out.println("  profile show");
         out.println("  " + ProfileCommands.DIET_USAGE);
         out.println("  " + ProfileCommands.ALLERGY_USAGE);
@@ -428,6 +433,9 @@ public final class CLIHandler {
             case "generate" -> planGenerationCommands.generate(rest);
             case "strategies" -> planGenerationCommands.strategies(rest);
             case "nutrition" -> analysisCommands.nutrition(rest);
+            case "edit" -> planEditCommands.edit(rest);
+            case "undo" -> undo();
+            case "redo" -> redo();
             default -> throw new UsageException(PLAN_USAGE);
         }
     }
@@ -449,8 +457,7 @@ public final class CLIHandler {
             // A scaled copy for this meal only; the recipe book keeps the original.
             recipe = RecipeScaler.scale(recipe, CliArgs.parseInt(parsed.flags().get("servings"), PLAN_SET_USAGE));
         }
-        // Labelled with the recipe name so undo/redo descriptions read "Replace Day 1 DINNER with <recipe>".
-        Meal meal = new Meal(type, recipe.getName(), List.of(recipe));
+        Meal meal = PlanMeals.forRecipe(type, recipe);
 
         // Stage 1 F06 rule: a safety violation aborts the edit and leaves the plan untouched.
         List<Violation> unsafe = ctx.validator().validateAgainstBlacklists(meal).getSafetyViolations();

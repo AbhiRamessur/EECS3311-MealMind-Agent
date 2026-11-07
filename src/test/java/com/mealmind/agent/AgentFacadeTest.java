@@ -7,21 +7,27 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.mealmind.command.CommandHistory;
+import com.mealmind.llm.ChatMessage;
 import com.mealmind.llm.LlmErrorKind;
 import com.mealmind.llm.LlmException;
 import com.mealmind.llm.LlmService;
+import com.mealmind.llm.Role;
 import com.mealmind.model.ChangeEvent;
 import com.mealmind.model.Ingredient;
+import com.mealmind.model.MealPlan;
+import com.mealmind.model.MealType;
 import com.mealmind.model.Recipe;
 import com.mealmind.model.RecipeBook;
 import com.mealmind.model.Unit;
 import com.mealmind.nutrition.DayNutrition;
 import com.mealmind.nutrition.Macros;
 import com.mealmind.nutrition.NutritionSummary;
+import com.mealmind.pantry.Pantry;
 import com.mealmind.profile.DietType;
 import com.mealmind.profile.UserProfile;
 import com.mealmind.recommend.Recommendation;
 import com.mealmind.recommend.RecommendationResult;
+import com.mealmind.tools.RecipeSearchTool;
 import com.mealmind.tools.ToolManager;
 import com.mealmind.validation.ConstraintValidator;
 import java.util.ArrayList;
@@ -311,5 +317,207 @@ class AgentFacadeTest {
         client.reply("{\"commentary\": \"Calories are about 40% of target; add a snack.\"}");
 
         assertTrue(old.explainNutrition(oneDaySummary(), null).contains("40%"));
+    }
+
+    // ---- Commit 15: natural-language plan editing (F06) ----
+
+    private RecipeBook editBook;
+    private MealPlan editPlan;
+    private CommandHistory editHistory;
+    private AgentMemory editMemory;
+
+    /** A facade over the F06 fixture book with recipe_search registered; Day 2 dinner holds Lentil Soup. */
+    private AgentFacade editFacade() {
+        editBook = PlanEditReplies.book();
+        editPlan = new MealPlan("Weekly Plan", 3);
+        editPlan.setMeal(2, MealType.DINNER, PlanMeals.forRecipe(MealType.DINNER, PlanEditReplies.LENTIL_SOUP));
+        editHistory = new CommandHistory();
+        editMemory = new AgentMemory();
+        ConstraintValidator validator = new ConstraintValidator(profile);
+        ToolManager tools = new ToolManager();
+        tools.register(new RecipeSearchTool(editBook, new Pantry(), validator));
+        AgentFacade edits = new AgentFacade(llm, tools, editMemory, validator, profile, editBook, AgentLimits.defaults(), List::of);
+        edits.addObserver(events::add);
+        return edits;
+    }
+
+    private String dinnerId() {
+        return editPlan.getMeal(2, MealType.DINNER).orElseThrow().getRecipes().get(0).getId();
+    }
+
+    @Test
+    void editFlowSearchesThenReplacesThroughTheHistory() {
+        AgentFacade edits = editFacade();
+        client.reply(RecipeReplies.toolCall("recipe_search", "{\"maxPrepMinutes\": 10}"),
+                PlanEditReplies.replace(2, "DINNER", "E3", "Ready in 5 minutes"));
+        List<AgentEventType> activity = new ArrayList<>();
+
+        PlanEditResult result = edits.editPlan("make tuesday dinner quicker", editPlan, editHistory, e -> activity.add(e.type()));
+
+        assertEquals(EditOutcome.APPLIED, result.outcome());
+        assertEquals("Replaced Day 2 DINNER with Oat Bowl (Ready in 5 minutes)", result.message());
+        assertEquals("E3", dinnerId());
+        assertEquals(1, editHistory.undoSize());
+        assertEquals(2, result.llmCalls());
+        assertEquals(1, result.toolSteps());
+        assertEquals(List.of(AgentEventType.THINKING, AgentEventType.TOOL_CALL, AgentEventType.TOOL_RESULT,
+                AgentEventType.THINKING, AgentEventType.DONE), activity);
+        assertEquals(List.of("make tuesday dinner quicker", "Applied: Replaced Day 2 DINNER with Oat Bowl (Ready in 5 minutes)"),
+                editMemory.history().stream().map(ChatMessage::content).toList());
+        assertTrue(events.isEmpty());
+        assertTrue(edits.pendingRecipe().isEmpty());
+    }
+
+    @Test
+    void clarifyLeavesThePlanAndRecordsTheQuestion() {
+        AgentFacade edits = editFacade();
+        client.reply(PlanEditReplies.clarify("Which day's dinner should I change?"));
+
+        PlanEditResult result = edits.editPlan("change dinner", editPlan, editHistory, null);
+
+        assertEquals(EditOutcome.CLARIFICATION, result.outcome());
+        assertEquals("E1", dinnerId());
+        assertFalse(editHistory.canUndo());
+        assertEquals("Asked: Which day's dinner should I change?", editMemory.history().get(1).content());
+    }
+
+    @Test
+    void unsafeProposalIsFedBackAndACorrectedOneApplied() {
+        AgentFacade edits = editFacade();
+        profile.setDiet(DietType.VEGETARIAN);
+        client.reply(PlanEditReplies.replace(2, "DINNER", "E2", "More protein"), PlanEditReplies.replace(2, "DINNER", "E3", "Veggie"));
+
+        PlanEditResult result = edits.editPlan("more protein on tuesday", editPlan, editHistory, null);
+
+        assertEquals(EditOutcome.APPLIED, result.outcome());
+        assertEquals("E3", dinnerId());
+        String feedback = client.requests.get(1).messages().get(3).content();
+        assertTrue(feedback.startsWith("That recipe violates the user's safety rules: Chicken breast"), feedback);
+    }
+
+    @Test
+    void unsafeOnEveryAttemptIsRefusedWithoutChangesOrMemory() {
+        AgentFacade edits = editFacade();
+        profile.setDiet(DietType.VEGETARIAN);
+        for (int i = 0; i < 4; i++) {
+            client.reply(PlanEditReplies.replace(2, "DINNER", "E2", "Chicken"));
+        }
+
+        PlanEditResult result = edits.editPlan("chicken on tuesday", editPlan, editHistory, null);
+
+        assertEquals(EditOutcome.REFUSED, result.outcome());
+        assertEquals("No safe edit found after 4 attempts. The plan was not changed.", result.message());
+        assertEquals(List.of("Chicken breast is not allowed for a vegetarian diet (contains chicken)"), result.detail());
+        assertEquals("E1", dinnerId());
+        assertFalse(editHistory.canUndo());
+        assertEquals(0, editMemory.size());
+    }
+
+    @Test
+    void malformedReplyIsRepairedAndExhaustedRepairsThrow() {
+        AgentFacade edits = editFacade();
+        client.reply("not json", PlanEditReplies.clear(2, "DINNER"));
+        assertEquals("Cleared Day 2 DINNER (Freed up)", edits.editPlan("drop tuesday dinner", editPlan, editHistory, null).message());
+        editHistory.undo();
+
+        client.reply("nope", "still nope", "{\"edit\": {\"action\": \"swap\"}}");
+        assertThrows(AgentException.class, () -> edits.editPlan("drop tuesday dinner", editPlan, editHistory, null));
+        assertEquals("E1", dinnerId());
+        assertEquals(0, editHistory.undoSize());
+    }
+
+    @Test
+    void theModelCanNeverPlaceARecipeOutsideTheBook() {
+        AgentFacade edits = editFacade();
+        client.reply(PlanEditReplies.replace(2, "DINNER", "R999", "Invented"), PlanEditReplies.replace(2, "DINNER", "E3", "Real"));
+
+        edits.editPlan("something new for tuesday dinner", editPlan, editHistory, null);
+
+        assertTrue(editBook.contains(dinnerId()));
+        assertTrue(client.requests.get(1).messages().get(3).content().contains("Unknown recipe id 'R999'"));
+        assertEquals(3, editBook.size());
+    }
+
+    @Test
+    void editFailuresPropagateAndChangeNothing() {
+        AgentFacade edits = editFacade();
+        client.fail(LlmErrorKind.TIMEOUT, "slow");
+        LlmException timeout = assertThrows(LlmException.class, () -> edits.editPlan("swap tuesday dinner", editPlan, editHistory, null));
+        assertEquals(LlmErrorKind.TIMEOUT, timeout.getKind());
+
+        llm.disable("Not configured");
+        List<AgentEvent> activity = new ArrayList<>();
+        int calls = client.requests.size();
+        LlmException disabled = assertThrows(LlmException.class,
+                () -> edits.editPlan("swap tuesday dinner", editPlan, editHistory, activity::add));
+        assertEquals(LlmErrorKind.UNAVAILABLE, disabled.getKind());
+        assertEquals("AI features are disabled: Not configured", disabled.getMessage());
+        assertEquals(calls, client.requests.size());
+        assertTrue(activity.isEmpty());
+        assertEquals("E1", dinnerId());
+        assertEquals(0, editMemory.size());
+    }
+
+    @Test
+    void editRespectsTheBusyGuard() throws Exception {
+        AgentFacade edits = editFacade();
+        CountDownLatch release = new CountDownLatch(1);
+        client.blockUntil(release).reply(recipe("Slow Bowl", "Rice", "Beans"));
+        Thread worker = new Thread(() -> edits.generateRecipe("slow", null));
+        worker.start();
+        assertTrue(client.entered.await(5, TimeUnit.SECONDS));
+
+        assertEquals("The agent is already working on a request", assertThrows(IllegalStateException.class,
+                () -> edits.editPlan("swap tuesday dinner", editPlan, editHistory, null)).getMessage());
+
+        release.countDown();
+        worker.join(5000);
+    }
+
+    @Test
+    void blankAndTooLongInstructionsAreRejected() {
+        AgentFacade edits = editFacade();
+
+        assertThrows(IllegalArgumentException.class, () -> edits.editPlan("   ", editPlan, editHistory, null));
+        IllegalArgumentException tooLong = assertThrows(IllegalArgumentException.class,
+                () -> edits.editPlan("x".repeat(301), editPlan, editHistory, null));
+        assertEquals("The request is too long (at most 300 characters)", tooLong.getMessage());
+        assertTrue(client.requests.isEmpty());
+    }
+
+    @Test
+    void seedHasRecentHistoryStartingWithAUserMessageThePlanAndTheProfile() {
+        AgentFacade edits = editFacade();
+        profile.addAllergen("peanut");
+        for (int i = 1; i <= 4; i++) {
+            editMemory.addUserMessage("request " + i);
+            if (i < 4) {
+                editMemory.addAssistantMessage("answer " + i);
+            }
+        }
+        client.reply(PlanEditReplies.clarify("Which meal do you mean?"));
+
+        edits.editPlan("and the other one", editPlan, editHistory, null);
+
+        List<ChatMessage> seed = client.requests.get(0).messages();
+        assertEquals(7, seed.size(), seed.toString());
+        assertEquals(Role.SYSTEM, seed.get(0).role());
+        assertEquals(Role.USER, seed.get(1).role());
+        assertEquals("request 2", seed.get(1).content());
+        assertTrue(seed.get(0).content().contains("Allergens (never include these or anything derived from them): peanut."));
+        assertTrue(seed.get(6).content().contains("Day 2 (Tuesday) DINNER: Lentil Soup [E1] x1 servings"));
+        assertTrue(seed.get(6).content().endsWith("User request: and the other one"));
+        assertTrue(client.requests.get(0).jsonMode());
+    }
+
+    @Test
+    void existingConstructorSupportsEditing() {
+        MealPlan plan = new MealPlan("Weekly Plan", 1);
+        client.reply(PlanEditReplies.clarify("What would you like to add?"));
+
+        PlanEditResult result = facade.editPlan("add something", plan, new CommandHistory(), null);
+
+        assertEquals(EditOutcome.CLARIFICATION, result.outcome());
+        assertEquals("What would you like to add?", result.message());
     }
 }
