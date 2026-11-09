@@ -193,6 +193,14 @@ final class PlanGenerateBar extends VBox {
         return generate;
     }
 
+    Button newPlanButton() {
+        return newPlan;
+    }
+
+    TextField newDaysField() {
+        return newDays;
+    }
+
     Label outputLabel() {
         return output;
     }

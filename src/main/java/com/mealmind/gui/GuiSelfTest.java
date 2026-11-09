@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
@@ -146,6 +147,15 @@ public final class GuiSelfTest {
                 });
             }
             if (failure == null) {
+                failure = check(out, "Find meals with an empty pantry says there is nothing to do", () -> {
+                    LeftoversPane leftovers = pantry.leftovers();
+                    leftovers.findButton().fire();
+                    return leftovers.messageLabel().getText().equals("The pantry is empty; nothing to do.")
+                            && leftovers.table().getItems().isEmpty() && !leftovers.session().isPending()
+                            && leftovers.applyButton().isDisabled();
+                });
+            }
+            if (failure == null) {
                 failure = check(out, "AI status label shows no key", () -> {
                     String text = controller.aiStatusLabel().getText();
                     return text.startsWith("AI") && !KEY_LIKE.matcher(text).find();
@@ -154,8 +164,87 @@ public final class GuiSelfTest {
             if (failure == null) {
                 failure = recipeChecks(ctx, controller, out);
             }
-            return failure == null ? planChecks(ctx, controller, dir, out) : failure;
+            if (failure == null) {
+                failure = planChecks(ctx, controller, dir, out);
+            }
+            return failure == null ? leftoverChecks(ctx, controller, out) : failure;
         }
+    }
+
+    /**
+     * Pantry-tab "Use up expiring items" checks (F10, deterministic, no AI). Runs after the plan checks, so the
+     * plan has 3 days with lunch and dinner filled and the profile is vegetarian with a peanut allergy.
+     */
+    private static String leftoverChecks(ApplicationContext ctx, MainController controller, PrintStream out) {
+        PantryTab pantry = controller.pantryTab();
+        LeftoversPane leftovers = pantry.leftovers();
+        PlanGridView grid = controller.planTab().grid();
+        ShoppingTab shopping = controller.shoppingTab();
+        long filled = grid.filledCount();
+        List<ShoppingRow> shoppingBefore = List.copyOf(shopping.table().getItems());
+        List<Check> checks = List.of(
+                new Check("Find meals proposes Red Lentil Soup for lentils expiring tomorrow; the plan is unchanged", () -> {
+                    pantry.nameField().setText("Red lentils");
+                    pantry.quantityField().setText("400");
+                    pantry.unitChoice().setValue(Unit.GRAM);
+                    pantry.expiryPicker().setValue(LocalDate.now(CLOCK).plusDays(1));
+                    pantry.addButton().fire();
+                    leftovers.findButton().fire();
+                    return !leftovers.table().getItems().isEmpty()
+                            && leftovers.table().getItems().get(0).recipeText().equals("Red Lentil Soup")
+                            && leftovers.table().getItems().get(0).slotText().equals("Day 1 (Monday) BREAKFAST")
+                            && grid.filledCount() == filled && ctx.plan().getMeal(1, MealType.BREAKFAST).isEmpty();
+                }),
+                new Check("Apply fills the slot through the history and the Shopping List follows", () -> {
+                    leftovers.applyButton().fire();
+                    return ctx.plan().getMeal(1, MealType.BREAKFAST).isPresent()
+                            && grid.cell(1, MealType.BREAKFAST).getText().startsWith("Red Lentil Soup")
+                            && grid.filledCount() == filled + 1 && leftovers.table().getItems().isEmpty()
+                            && !shopping.table().getItems().equals(shoppingBefore)
+                            && controller.statusBar().getText().startsWith("Applied: Add 1 leftover meal(s) to the plan.");
+                }),
+                new Check("one Undo reverts the whole leftover proposal", () -> {
+                    controller.toolBar().undoButton().fire();
+                    return ctx.plan().getMeal(1, MealType.BREAKFAST).isEmpty() && grid.filledCount() == filled;
+                }),
+                new Check("Discard clears the proposal", () -> {
+                    leftovers.findButton().fire();
+                    boolean shown = !leftovers.table().getItems().isEmpty() && !leftovers.applyButton().isDisabled();
+                    leftovers.discardButton().fire();
+                    return shown && leftovers.table().getItems().isEmpty() && !leftovers.session().isPending()
+                            && leftovers.applyButton().isDisabled();
+                }),
+                new Check("Days 0 and 15 show field errors", () -> {
+                    leftovers.daysField().setText("0");
+                    leftovers.findButton().fire();
+                    boolean zero = leftovers.daysError().getText().equals("Days must be from 1 to 14, got 0");
+                    leftovers.daysField().setText("15");
+                    leftovers.findButton().fire();
+                    boolean fifteen = leftovers.daysError().getText().equals("Days must be from 1 to 14, got 15");
+                    leftovers.daysField().setText("3");
+                    return zero && fifteen && leftovers.table().getItems().isEmpty();
+                }),
+                new Check("Re-rank with AI is disabled with a visible reason when AI is not configured", () ->
+                        leftovers.rerankBox().isDisabled() && leftovers.unavailableLabel().isVisible()
+                                && leftovers.unavailableLabel().getText().startsWith("AI unavailable: ")),
+                new Check("a proposal made before New plan is refused at Apply and cleared", () -> {
+                    leftovers.findButton().fire();
+                    boolean pending = leftovers.session().isPending();
+                    controller.planTab().generateBar().newDaysField().setText("2");
+                    controller.planTab().generateBar().newPlanButton().fire();
+                    leftovers.applyButton().fire();
+                    return pending && controller.statusBar().getText()
+                            .equals("The plan changed since this proposal was made. Run 'plan leftovers' again.")
+                            && !leftovers.session().isPending() && leftovers.table().getItems().isEmpty()
+                            && ctx.plan().getMeal(1, MealType.BREAKFAST).isEmpty();
+                }));
+        for (Check check : checks) {
+            String failure = check(out, check.name(), check.test());
+            if (failure != null) {
+                return failure;
+            }
+        }
+        return null;
     }
 
     /**

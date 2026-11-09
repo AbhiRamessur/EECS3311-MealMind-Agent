@@ -9,7 +9,6 @@ import com.mealmind.gui.logic.PlanBindings;
 import com.mealmind.gui.logic.StatusMessages;
 import com.mealmind.gui.logic.UiThread;
 import com.mealmind.gui.logic.UndoRedoModel;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -67,7 +66,9 @@ public final class MainController implements AutoCloseable {
 
         profileTab = new ProfileTab(ctx.profile(), this::showStatus);
         bindings.add(ObserverBinding.bind(ctx.profile(), ui, profileTab::onProfileChanged));
-        pantryTab = new PantryTab(ctx.pantry(), ctx.history(), () -> LocalDate.now(ctx.clock()), this::showStatus);
+        // One flag for every AI job started from the window (Pantry leftovers, Plan chat, Nutrition), so they never overlap.
+        BusyFlag aiBusy = new BusyFlag();
+        pantryTab = new PantryTab(ctx, background, ui, this::showStatus, aiBusy);
         bindings.add(ObserverBinding.bind(ctx.pantry(), ui, pantryTab::refresh));
         recipesTab = new RecipesTab(ctx, background, ui, this::showStatus);
         bindings.add(ObserverBinding.bind(ctx.recipeBook(), ui, recipesTab::refresh));
@@ -79,10 +80,9 @@ public final class MainController implements AutoCloseable {
 
         // The plan and shopping-list generator are replaced by ctx.newPlan, so their bindings are re-pointed.
         planBindings = new PlanBindings(ctx, ui);
-        BusyFlag planAi = new BusyFlag();
-        planTab = new PlanTab(ctx, background, ui, this::showStatus, planAi, planBindings::repoint);
+        planTab = new PlanTab(ctx, background, ui, this::showStatus, aiBusy, planBindings::repoint);
         shoppingTab = new ShoppingTab(ctx, this::showStatus);
-        nutritionTab = new NutritionTab(ctx, background, ui, this::showStatus, planAi);
+        nutritionTab = new NutritionTab(ctx, background, ui, this::showStatus, aiBusy);
         planBindings.onPlanChange(planTab::refresh);
         planBindings.onPlanChange(nutritionTab::refresh);
         planBindings.onShoppingChange(shoppingTab::refresh);
@@ -157,6 +157,7 @@ public final class MainController implements AutoCloseable {
         bindings.forEach(ObserverBinding::close);
         bindings.clear();
         planBindings.close();
+        pantryTab.close();
         background.close();
     }
 

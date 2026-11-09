@@ -131,3 +131,14 @@
 .progress-over .bar {
     -fx-background-color: #c0392b;
 }
+
+/* Pantry tab: Use up expiring items (F10) */
+
+.leftover-hint {
+    -fx-text-fill: #7a4f00;
+}
+
+.leftover-pending {
+    -fx-font-weight: bold;
+    -fx-text-fill: #2b3440;
+}

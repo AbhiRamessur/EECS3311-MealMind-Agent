@@ -1,14 +1,18 @@
 package com.mealmind.gui;
 
+import com.mealmind.app.ApplicationContext;
 import com.mealmind.command.AddPantryItemCommand;
 import com.mealmind.command.CommandHistory;
 import com.mealmind.command.RemovePantryItemCommand;
+import com.mealmind.gui.logic.BackgroundRunner;
+import com.mealmind.gui.logic.BusyFlag;
 import com.mealmind.gui.logic.ExpiryLevel;
 import com.mealmind.gui.logic.FieldError;
 import com.mealmind.gui.logic.FormResult;
 import com.mealmind.gui.logic.PantryForm;
 import com.mealmind.gui.logic.PantryRow;
 import com.mealmind.gui.logic.PantryRows;
+import com.mealmind.gui.logic.UiThread;
 import com.mealmind.model.Unit;
 import com.mealmind.pantry.Pantry;
 import com.mealmind.pantry.PantryItem;
@@ -26,6 +30,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
@@ -41,6 +46,7 @@ import javafx.util.StringConverter;
  * The Pantry tab: a table of {@link PantryRow}s (expired rows red, soon-to-expire rows amber), an add form
  * and a Remove Selected button. Adding and removing run {@link AddPantryItemCommand} and
  * {@link RemovePantryItemCommand} through the shared {@link CommandHistory}, so undo works as in the CLI.
+ * Below them, the {@link LeftoversPane} ("Use up expiring items", F10) proposes meals for expiring items.
  */
 final class PantryTab extends Tab {
 
@@ -57,13 +63,15 @@ final class PantryTab extends Tab {
     private final Button add = new Button("Add");
     private final Button remove = new Button("Remove Selected");
     private final Map<String, Label> errors = Map.of("name", errorLabel(), "quantity", errorLabel(), "unit", errorLabel());
+    private final LeftoversPane leftovers;
 
-    PantryTab(Pantry pantry, CommandHistory history, Supplier<LocalDate> today, BiConsumer<String, Boolean> status) {
+    PantryTab(ApplicationContext ctx, BackgroundRunner runner, UiThread ui, BiConsumer<String, Boolean> status, BusyFlag aiBusy) {
         super("Pantry");
-        this.pantry = Objects.requireNonNull(pantry, "pantry");
-        this.history = Objects.requireNonNull(history, "history");
-        this.today = Objects.requireNonNull(today, "today");
+        this.pantry = ctx.pantry();
+        this.history = ctx.history();
+        this.today = () -> LocalDate.now(ctx.clock());
         this.status = Objects.requireNonNull(status, "status");
+        this.leftovers = new LeftoversPane(ctx, runner, ui, status, aiBusy);
         setClosable(false);
 
         table.getColumns().add(column("Name", PantryRow::name, 220));
@@ -115,9 +123,11 @@ final class PantryTab extends Tab {
         form.addRow(1, name, quantity, unit, expiry, add);
         form.addRow(2, errors.get("name"), errors.get("quantity"), errors.get("unit"));
 
-        VBox content = new VBox(10, table, counts, form, new HBox(8, remove));
+        VBox content = new VBox(10, table, counts, form, new HBox(8, remove), leftovers);
         content.getStyleClass().add("tab-content");
-        setContent(content);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        setContent(scroll);
         refresh();
     }
 
@@ -205,7 +215,20 @@ final class PantryTab extends Tab {
         return add;
     }
 
+    DatePicker expiryPicker() {
+        return expiry;
+    }
+
     Label countsLabel() {
         return counts;
+    }
+
+    LeftoversPane leftovers() {
+        return leftovers;
+    }
+
+    /** Closes the leftovers section's bindings. */
+    void close() {
+        leftovers.close();
     }
 }

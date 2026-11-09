@@ -298,7 +298,8 @@ plan leftovers discard                 # drop the proposal
 - Matching is by ingredient **name** only ("lentils" matches "Red lentils"; quantities are not compared).
 - `--ai` is optional: the AI may only **reorder** the safe recipes the code already chose and explain them; it can never add a recipe. If the AI is unavailable, the normal proposal is printed followed by one `AI explanation unavailable: ...` line.
 - When no recipe in your book uses the expiring items, the message suggests `recipe generate "a dish using ..."`.
-- Limitations: CLI only (the Stage 1 "Clear Expiring Items" GUI button is not implemented); AI-drafted leftover recipes are not implemented; the pending proposal is kept for the current session only.
+- The same flow is on the GUI's Pantry tab ("Use up expiring items"; see "Graphical interface").
+- Limitations: AI-drafted leftover recipes are not implemented; the pending proposal is kept for the current session only.
 
 #### Ingredient substitution (F07)
 
@@ -338,13 +339,13 @@ All of these start `Main --gui`, so the window uses the same data directory (`ME
 The window contains:
 - a **toolbar** with **Undo** and **Redo** buttons (labelled with the next action, also Ctrl+Z / Ctrl+Y) and, on the right, the **AI status** (provider and model, or why AI is disabled; nothing else from the configuration is shown);
 - a **Profile** tab: diet, allergens, daily targets, weekly budget and household servings. Edits stay in the form until **Apply**; errors appear next to the field with the same messages as the CLI; **Reset** reloads the saved profile;
-- a **Pantry** tab: a table of items (expired rows red, items expiring within 3 days amber), an add form (name, quantity, unit, optional expiry date) and **Remove Selected**;
+- a **Pantry** tab: a table of items (expired rows red, items expiring within 3 days amber), an add form (name, quantity, unit, optional expiry date), **Remove Selected**, and a **Use up expiring items** section (see below);
 - a **Recipes** tab, and **Plan**, **Shopping List** and **Nutrition** tabs (see below);
 - a status bar with the result of the last action.
 
 The GUI is a thin front end over the same session objects as the CLI: adding or removing a pantry item runs the same undoable command, so **Undo** reverts it exactly like `undo` in the CLI, and every change is saved to the same files (`profile.json`, `pantry.json`). One running program uses one front end; both read the same files on the next start.
 
-The GUI self-test checks the wiring without showing a window: it drives the real Profile, Pantry and Recipes controls on a temporary data directory (no AI, no network) and prints one line per check (exit code 0 ok, 1 failed, 3 skipped when JavaFX cannot start):
+The GUI self-test checks the wiring without showing a window: it drives the real Profile, Pantry (including "Use up expiring items"), Recipes, Plan, Shopping List and Nutrition controls on a temporary data directory (no AI, no network) and prints one line per check, 32 in all (exit code 0 ok, 1 failed, 3 skipped when JavaFX cannot start):
 ```bash
 mvn -q javafx:run -Dmealmind.javafxArgs=--gui-selftest
 ```
@@ -355,6 +356,15 @@ mvn -q exec:java -Dexec.args="--gui-selftest"
 mvn -q exec:java "-Dexec.args=--gui-selftest"
 mvn -q javafx:run "-Dmealmind.javafxArgs=--gui-selftest"
 ```
+
+#### Pantry tab: Use up expiring items (F10)
+Below the pantry table, the **Use up expiring items** section does what `plan leftovers` does in the CLI (it runs the same code):
+- The hint at the top says how many pantry items expire within the chosen number of days (expired ones included).
+- Set **Days** (1-14, default 3) and **Meals** (1-6, default 3), tick **Replace existing meals if no slot is free** if the plan is full, and press **Find meals**. The proposed meals appear in a table (Slot, Recipe, Why, Replaces) under "Proposal (nothing applied yet)"; the plan is not changed.
+- **Apply** adds every proposed meal to the plan as **one undoable step**: one **Undo** removes them all. **Discard** drops the proposal.
+- Every recipe is checked against your diet and allergens when it is proposed and again when it is applied. If the plan was replaced after the proposal (for example with **New plan**), Apply refuses and the proposal is cleared; press Find meals again.
+- **Re-rank with AI** is optional: the AI may only **reorder** the safe recipes that were found (it never adds one), runs in the background and shows its activity log. If the AI fails, the normal proposal stays and the status bar says "AI explanation unavailable: ...". Without AI the box is disabled and a visible "AI unavailable" label says why.
+- This is an inline section, not the pop-up dialog described in Stage 1. Limitations: matching is by ingredient name only, AI-drafted leftover recipes are not implemented, and the proposal is kept only while the window is open.
 
 #### Recipes tab
 The left side lists every recipe (id, name, servings, prep time, kcal per serving, your rating, favorite, safety), with a filter box (id, name or ingredient) and **Favorites only**. Recipes that break your diet or allergen rules are **listed but flagged** ("Safe: NO", muted red) so you can see why they are never suggested; the AI tools, by contrast, never see them at all. The right side has three sections:

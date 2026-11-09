@@ -1,34 +1,26 @@
 package com.mealmind.cli;
 
 import com.mealmind.agent.AgentEventType;
-import com.mealmind.agent.AgentException;
-import com.mealmind.agent.RecommendationRanker;
 import com.mealmind.app.ApplicationContext;
-import com.mealmind.leftovers.ExpiringItem;
 import com.mealmind.leftovers.LeftoverAssignment;
-import com.mealmind.leftovers.LeftoverCandidates;
+import com.mealmind.leftovers.LeftoverFlow;
 import com.mealmind.leftovers.LeftoverPlanner;
 import com.mealmind.leftovers.LeftoverProposal;
 import com.mealmind.leftovers.LeftoverRequest;
-import com.mealmind.llm.LlmException;
-import com.mealmind.recommend.Recommendation;
-import com.mealmind.recommend.RecommendationResult;
 import java.io.PrintStream;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * {@code plan leftovers ...} (F10): proposes meals that use up expiring pantry items, then applies or
  * discards the proposal. A proposal changes nothing; {@code plan leftovers apply} adds all its meals as one
  * undoable step. With {@code --ai} the AI may only reorder the safe candidates the code chose; if that fails,
- * the deterministic proposal stands and one "AI explanation unavailable: ..." line is printed.
+ * the deterministic proposal stands and one "AI explanation unavailable: ..." line is printed. The flow and its
+ * wording live in {@link LeftoverFlow}, shared with the GUI; this class parses the arguments and prints.
  */
 final class LeftoverCommands {
 
@@ -65,43 +57,24 @@ final class LeftoverCommands {
         LeftoverRequest request = parse(args);
         boolean useAi = args.stream().anyMatch(arg -> arg.equalsIgnoreCase(AI));
         LeftoverPlanner planner = planner();
-        LeftoverCandidates candidates = planner.findCandidates(ctx.plan(), request, LocalDate.now(ctx.clock()));
+        LeftoverFlow.Outcome outcome = LeftoverFlow.propose(planner, ctx.plan(), request, LocalDate.now(ctx.clock()));
         pending = null;
-        if (candidates.isBlocked()) {
-            out.println(candidates.blocked().orElseThrow());
+        if (outcome.blocked().isPresent()) {
+            out.println(outcome.blocked().get());
             return;
         }
-        LeftoverProposal deterministic = planner.assign(candidates, ctx.plan(), List.of(), Map.of(), request);
-        if (!useAi) {
-            print(deterministic, request, List.of());
-            pending = deterministic;
-            return;
-        }
-        if (candidates.candidates().size() < 2) {
-            print(deterministic, request, List.of("Only one candidate recipe, so AI ranking was not needed."));
-            pending = deterministic;
-            return;
-        }
-        try {
-            RecommendationResult ranked = ctx.agent().rerankRecommendations(planner.toRecommendations(candidates),
+        if (useAi) {
+            outcome = LeftoverFlow.rerank(planner, outcome.candidates().orElseThrow(), ctx.plan(), request, ctx.agent(),
                     event -> {
                         if (event.type() != AgentEventType.ERROR) {
                             out.println("[agent] " + event.message());
                         }
                     });
-            List<String> order = ranked.items().stream().map(item -> item.recipe().getId()).toList();
-            Map<String, String> reasons = new LinkedHashMap<>();
-            for (Recommendation item : ranked.items()) {
-                reasons.put(item.recipe().getId(), item.reason());
-            }
-            LeftoverProposal aiProposal = planner.assign(candidates, ctx.plan(), order, reasons, request);
-            print(aiProposal, request, List.of(RecommendationRanker.NOTE + " (it can only reorder these safe recipes)."));
-            pending = aiProposal;
-        } catch (LlmException | AgentException | IllegalStateException e) {
-            print(deterministic, request, List.of());
-            out.println("AI explanation unavailable: " + e.getMessage());
-            pending = deterministic;
         }
+        LeftoverProposal proposal = outcome.proposal().orElseThrow();
+        print(proposal, request, outcome.notes());
+        outcome.aiProblem().ifPresent(problem -> out.println(LeftoverFlow.AI_PROBLEM_PREFIX + problem));
+        pending = proposal;
     }
 
     /** Reads the switches and flags; anything else is a usage error. */
@@ -133,11 +106,8 @@ final class LeftoverCommands {
     }
 
     private void print(LeftoverProposal proposal, LeftoverRequest request, List<String> extraNotes) {
-        out.println("Expiring within " + request.withinDays() + " days: "
-                + proposal.expiring().stream().map(ExpiringItem::label).collect(Collectors.joining("; ")));
-        proposal.notes().forEach(note -> out.println("Note: " + note));
-        extraNotes.forEach(note -> out.println("Note: " + note));
-        out.println("Proposal (nothing applied yet):");
+        LeftoverFlow.headerLines(proposal, request, extraNotes).forEach(out::println);
+        out.println(LeftoverFlow.PROPOSAL_TITLE);
         for (LeftoverAssignment assignment : proposal.assignments()) {
             String replaces = assignment.replacesExisting()
                     ? proposal.plan().getMeal(assignment.day(), assignment.slot())
@@ -151,7 +121,7 @@ final class LeftoverCommands {
 
     private void apply() {
         if (pending == null) {
-            out.println("No pending leftover proposal.");
+            out.println(LeftoverFlow.NO_PENDING);
             return;
         }
         List<String> lines;
@@ -164,17 +134,17 @@ final class LeftoverCommands {
             throw e;
         }
         pending = null;
-        out.println("Applied: " + ctx.history().nextUndoDescription().orElseThrow() + ".");
+        out.println(LeftoverFlow.appliedMessage(ctx.history().nextUndoDescription().orElseThrow()));
         lines.forEach(out::println);
-        out.println("Use 'undo' to revert.");
+        out.println(LeftoverFlow.UNDO_HINT);
     }
 
     private void discard() {
         if (pending == null) {
-            out.println("No pending leftover proposal.");
+            out.println(LeftoverFlow.NO_PENDING);
             return;
         }
         pending = null;
-        out.println("Discarded the leftover proposal.");
+        out.println(LeftoverFlow.DISCARDED);
     }
 }
