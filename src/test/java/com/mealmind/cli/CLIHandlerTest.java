@@ -1556,4 +1556,170 @@ class CLIHandlerTest {
         String help = run("help");
         assertContains(help, "plan leftovers [--days 1-14] [--meals 1-6] [--overwrite] [--ai] | plan leftovers apply | plan leftovers discard");
     }
+
+    // ---- Commit 21: recipe substitute (F07) ----
+
+    private static final String SUBSTITUTE_USAGE =
+            "Usage: recipe substitute --id <id> --ingredient \"<name>\" [--reason allergy|missing|preference]";
+
+    /** One substitution option; calories match the macros (4*protein + 4*carbs + 9*fat within 35%). */
+    private static String subOption(String name, double ratio, String note, int kcal, int protein, int carbs, int fat) {
+        return "{\"name\": \"" + name + "\", \"ratio\": " + ratio + ", \"note\": \"" + note + "\", \"calories\": " + kcal
+                + ", \"proteinG\": " + protein + ", \"carbsG\": " + carbs + ", \"fatG\": " + fat + ", \"cost\": 2}";
+    }
+
+    private static final String TOFU = subOption("Firm tofu", 1.0, "Absorbs the sauce", 450, 48, 6, 27);
+    private static final String CHICKPEAS = subOption("Chickpeas", 1.5, "Nuttier and firmer", 540, 30, 90, 9);
+    private static final String THIGH = subOption("Chicken thigh", 1.0, "Juicier", 600, 75, 0, 33);
+
+    private static String substitutions(String... options) {
+        return "{\"substitutions\": [" + String.join(", ", options) + "]}";
+    }
+
+    @Test
+    void recipeSubstitutePrintsOptionsAndChangesNothing() {
+        useScriptedAi().reply(substitutions(TOFU, CHICKPEAS));
+        run("pantry add \"Firm tofu\" 400 g");
+        String before = run("recipe show R101");
+
+        String output = run("recipe substitute --id R101 --ingredient chicken --reason allergy");
+
+        assertContains(output, "[agent] Asking the model (call 1)");
+        assertContains(output, "Substitutes for Chicken breast in R101 Chicken Stir-Fry (reason: allergy):");
+        assertContains(output, "  1. 300 g Firm tofu (x1) - Absorbs the sauce [in pantry]");
+        assertContains(output, "     about 450 kcal, P 48.0 g, C 6.0 g, F 27.0 g (AI estimates)");
+        assertContains(output, "  2. 450 g Chickpeas (x1.5) - Nuttier and firmer");
+        assertFalse(output.contains("Chickpeas (x1.5) - Nuttier and firmer [in pantry]"), output);
+        assertContains(output, "Use 'recipe substitute apply <n>' to apply it ('undo' reverts) or 'recipe substitute discard'.");
+        assertContains(output, "Agent: 1 model calls, 0 tool calls; tokens: 300 prompt + 120 completion");
+        assertEquals(before, run("recipe show R101"));
+    }
+
+    @Test
+    void recipeSubstituteApplyReplacesAndUndoRestores() {
+        useScriptedAi().reply(substitutions(TOFU, CHICKPEAS));
+        String before = run("recipe show R101");
+        run("recipe substitute --id R101 --ingredient \"Chicken breast\"");
+
+        String applied = run("recipe substitute apply 1");
+
+        assertContains(applied, "Substituted: Substituted Chicken breast with Firm tofu in Chicken Stir-Fry");
+        assertContains(applied, "Per serving: 707 -> 685 kcal");
+        assertFalse(applied.contains("Warning: Per serving"), applied);
+        assertContains(applied, "Note: R101 is a bundled sample recipe; this change lasts for this session only.");
+        assertContains(applied, "Use 'undo' to revert.");
+        assertContains(run("recipe show R101"), "Firm tofu");
+
+        assertContains(run("undo"), "Undone: Substitute Chicken breast with Firm tofu in Chicken Stir-Fry");
+        assertEquals(before, run("recipe show R101"));
+        assertContains(run("recipe substitute apply 1"), "No pending substitution.");
+    }
+
+    @Test
+    void recipeSubstituteApplyAndDiscardEdgeCases() {
+        assertContains(run("recipe substitute apply 1"), "No pending substitution.");
+        assertContains(run("recipe substitute discard"), "No pending substitution.");
+
+        useScriptedAi().reply(substitutions(TOFU, CHICKPEAS));
+        run("recipe substitute --id R101 --ingredient chicken");
+        assertContains(run("recipe substitute apply 0"), "Error: Choose an option from 1 to 2, got 0");
+        assertContains(run("recipe substitute apply 9"), "Error: Choose an option from 1 to 2, got 9");
+        assertContains(run("recipe substitute apply x"), "Usage: recipe substitute apply <n> | recipe substitute discard");
+        assertContains(run("recipe substitute discard"), "Discarded the pending substitution.");
+        assertContains(run("recipe substitute apply 1"), "No pending substitution.");
+        assertEquals("Chicken breast", ctx.recipeBook().get("R101").orElseThrow().getIngredients().get(0).getName());
+    }
+
+    @Test
+    void recipeSubstituteStaleProposalIsRefusedAndCleared() {
+        useScriptedAi().reply(substitutions(TOFU));
+        run("recipe substitute --id R101 --ingredient chicken", "recipe scale --id R101 --servings 4");
+
+        assertContains(run("recipe substitute apply 1"),
+                "Error: The recipe changed since this suggestion was made. Run 'recipe substitute' again.");
+        assertContains(run("recipe substitute apply 1"), "No pending substitution.");
+    }
+
+    @Test
+    void recipeSubstituteRefusesAnOptionThatBecameUnsafeAndKeepsTheProposal() {
+        useScriptedAi().reply(substitutions(TOFU, THIGH));
+        run("recipe substitute --id R101 --ingredient chicken");
+        ctx.profile().setDiet(DietType.VEGETARIAN);
+
+        assertContains(run("recipe substitute apply 2"),
+                "Error: Refused: Chicken thigh is not allowed for a vegetarian diet (contains chicken)");
+        assertEquals("Chicken breast", ctx.recipeBook().get("R101").orElseThrow().getIngredients().get(0).getName());
+        assertContains(run("recipe substitute apply 1"), "Substituted: Substituted Chicken breast with Firm tofu");
+    }
+
+    @Test
+    void recipeSubstituteWithOnlyUnsafeOptionsSaysSo() {
+        ScriptedAiClient client = useScriptedAi();
+        for (int i = 0; i < 4; i++) {
+            client.reply(substitutions(THIGH));
+        }
+        ctx.profile().setDiet(DietType.VEGETARIAN);
+
+        String output = run("recipe substitute --id R101 --ingredient chicken");
+
+        assertContains(output, "No safe substitute for Chicken breast was found. Consider replacing the whole recipe; "
+                + "try 'recipe recommend' for alternatives.");
+        assertContains(output, "Agent: 4 model calls, 0 tool calls;");
+        assertFalse(output.contains("Substitutes for"), output);
+        assertContains(run("recipe substitute apply 1"), "No pending substitution.");
+    }
+
+    @Test
+    void recipeSubstituteRejectsBadArguments() {
+        useScriptedAi();
+        for (String line : new String[] {"recipe substitute", "recipe substitute --id R101", "recipe substitute --ingredient x",
+                "recipe substitute --id R101 --ingredient x extra", "recipe substitute --id R101 --ingredient x --bogus 1",
+                "recipe substitute discard now"}) {
+            assertContains(run(line), "Usage: ");
+        }
+        assertEquals(SUBSTITUTE_USAGE + "\n", run("recipe substitute --id R101").replace("\r", ""));
+        assertContains(run("recipe substitute --id R101 --ingredient chicken --reason banana"),
+                "Error: Unknown reason 'banana'. Use: allergy, missing, preference");
+    }
+
+    @Test
+    void recipeSubstituteUnknownRecipeOrIngredientNeedsNoModel() {
+        ScriptedAiClient client = useScriptedAi();
+
+        String unknownRecipe = run("recipe substitute --id R999 --ingredient flour");
+        String unknownIngredient = run("recipe substitute --id R101 --ingredient nothing");
+
+        assertContains(unknownRecipe, "Error: No recipe with id 'R999'");
+        assertContains(unknownIngredient, "Error: Recipe R101 has no ingredient 'nothing'. Ingredients: Chicken breast, Broccoli, "
+                + "Red bell pepper, Garlic, Soy sauce, Vegetable oil, Basmati rice");
+        assertFalse((unknownRecipe + unknownIngredient).contains("[agent]"));
+        assertTrue(client.requests.isEmpty());
+    }
+
+    @Test
+    void recipeSubstituteWithAiDisabledPrintsOneError() {
+        String output = run("recipe substitute --id R101 --ingredient chicken");
+
+        assertEquals(List.of("Error: AI features are disabled: Not configured"), output.lines().toList());
+    }
+
+    @Test
+    void recipeSubstituteProviderFailurePrintsTheErrorOnce() {
+        ScriptedAiClient client = useScriptedAi();
+        client.failure = new LlmException(LlmErrorKind.SERVER_ERROR, "The AI service had an internal error (HTTP 500)", null);
+
+        String output = run("recipe substitute --id R101 --ingredient chicken");
+
+        assertEquals(1, output.split("Error: The AI service had an internal error", -1).length - 1, output);
+        assertFalse(output.contains("at com.mealmind"), output);
+        assertEquals("Chicken breast", ctx.recipeBook().get("R101").orElseThrow().getIngredients().get(0).getName());
+        assertContains(run("recipe substitute apply 1"), "No pending substitution.");
+    }
+
+    @Test
+    void helpMentionsRecipeSubstitute() {
+        String help = run("help");
+        assertContains(help, "recipe substitute --id <id> --ingredient \"<name>\" [--reason allergy|missing|preference]");
+        assertContains(help, "recipe substitute apply <n> | recipe substitute discard");
+    }
 }

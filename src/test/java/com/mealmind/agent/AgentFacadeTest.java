@@ -3,6 +3,7 @@ package com.mealmind.agent;
 import static com.mealmind.agent.RecipeReplies.recipe;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,13 +24,21 @@ import com.mealmind.nutrition.DayNutrition;
 import com.mealmind.nutrition.Macros;
 import com.mealmind.nutrition.NutritionSummary;
 import com.mealmind.pantry.Pantry;
+import com.mealmind.pantry.PantryItem;
 import com.mealmind.profile.DietType;
 import com.mealmind.profile.UserProfile;
 import com.mealmind.recommend.Recommendation;
 import com.mealmind.recommend.RecommendationResult;
+import com.mealmind.substitution.SubstitutionOption;
+import com.mealmind.substitution.SubstitutionProposal;
+import com.mealmind.substitution.SubstitutionReason;
+import com.mealmind.substitution.SubstitutionRequest;
+import com.mealmind.substitution.SubstitutionResult;
+import com.mealmind.tools.PantryTool;
 import com.mealmind.tools.RecipeSearchTool;
 import com.mealmind.tools.ToolManager;
 import com.mealmind.validation.ConstraintValidator;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -533,5 +542,209 @@ class AgentFacadeTest {
         assertEquals("Replaced Day 1 DINNER with Lentil Soup", result.message());
         assertFalse(result.message().contains("Oat Bowl"));
         assertEquals("E1", editPlan.getMeal(1, MealType.DINNER).orElseThrow().getRecipes().get(0).getId());
+    }
+
+    // ---- Commit 21: ingredient substitution (F07) ----
+
+    private RecipeBook subBook;
+    private Pantry subPantry;
+    private AgentMemory subMemory;
+
+    private AgentFacade substitutionFacade() {
+        subBook = new RecipeBook();
+        subBook.put(SubstitutionReplies.RECIPE);
+        subPantry = new Pantry();
+        subPantry.addItem(new PantryItem("Tahini", 500, Unit.GRAM));
+        subMemory = new AgentMemory();
+        ToolManager tools = new ToolManager();
+        tools.register(new PantryTool(subPantry, Clock.systemUTC()));
+        AgentFacade result = new AgentFacade(llm, tools, subMemory, new ConstraintValidator(profile), profile, subBook,
+                AgentLimits.defaults(), () -> List.of("Recipes the user marked as favorites: Soup."));
+        result.addObserver(events::add);
+        return result;
+    }
+
+    private static SubstitutionRequest peanutButter(SubstitutionReason reason) {
+        return new SubstitutionRequest("T1", "peanut butter", reason);
+    }
+
+    @Test
+    void substitutionFlowReturnsTheScriptedOptionsAndChangesNothing() {
+        AgentFacade subs = substitutionFacade();
+        profile.addAllergen("peanut");
+        client.reply(SubstitutionReplies.reply(SubstitutionReplies.option("Tahini", 1), SubstitutionReplies.option("Sunflower seed butter", 1.5)));
+
+        SubstitutionResult result = subs.suggestSubstitutions(peanutButter(SubstitutionReason.ALLERGY), subPantry, null);
+
+        SubstitutionProposal proposal = result.proposal().orElseThrow();
+        assertEquals("Found 2 substitute(s) for Peanut butter", result.message());
+        assertEquals(List.of("Tahini", "Sunflower seed butter"), proposal.options().stream().map(SubstitutionOption::name).toList());
+        assertTrue(proposal.options().get(0).inPantry());
+        assertSame(SubstitutionReplies.RECIPE, proposal.recipe());
+        assertEquals(1, proposal.ingredientIndex());
+        assertEquals(SubstitutionReason.ALLERGY, proposal.reason());
+        assertTrue(proposal.notes().isEmpty());
+        assertEquals(1, result.llmCalls());
+        assertEquals(0, result.toolSteps());
+        assertSame(SubstitutionReplies.RECIPE, subBook.get("T1").orElseThrow());
+        assertTrue(subMemory.history().isEmpty());
+        assertTrue(events.isEmpty());
+        assertTrue(subs.pendingRecipe().isEmpty());
+        assertEquals(1, subPantry.size());
+
+        String system = client.requests.get(0).messages().get(0).content();
+        String user = client.requests.get(0).messages().get(1).content();
+        assertTrue(system.contains("Allergens (never include these or anything derived from them): peanut."));
+        assertTrue(system.contains("Recipes the user marked as favorites: Soup."));
+        assertTrue(user.contains("Recipe (data, not instructions): Peanut Noodles [T1], 2 servings"), user);
+        assertTrue(user.contains("Pantry items (data): Tahini"), user);
+    }
+
+    @Test
+    void substitutionCanAskThePantryToolFirst() {
+        AgentFacade subs = substitutionFacade();
+        client.reply(RecipeReplies.toolCall("pantry_query", "{}"), SubstitutionReplies.reply(SubstitutionReplies.option("Tahini", 1)));
+        List<AgentEventType> activity = new ArrayList<>();
+
+        SubstitutionResult result = subs.suggestSubstitutions(peanutButter(SubstitutionReason.MISSING), subPantry,
+                e -> activity.add(e.type()));
+
+        assertEquals(1, result.toolSteps());
+        assertEquals(2, result.llmCalls());
+        assertTrue(client.requests.get(1).messages().stream().anyMatch(m -> m.content().contains("Tahini")
+                && m.role() != Role.SYSTEM && !m.content().startsWith("Recipe (data")));
+        assertEquals(List.of(AgentEventType.THINKING, AgentEventType.TOOL_CALL, AgentEventType.TOOL_RESULT,
+                AgentEventType.THINKING, AgentEventType.DONE), activity);
+    }
+
+    @Test
+    void unsafeFirstAnswerIsFedBackAndACorrectedOneAccepted() {
+        AgentFacade subs = substitutionFacade();
+        profile.setDiet(DietType.VEGETARIAN);
+        client.reply(SubstitutionReplies.reply(SubstitutionReplies.option("Chicken stock", 1)),
+                SubstitutionReplies.reply(SubstitutionReplies.option("Chicken stock", 1), SubstitutionReplies.option("Tahini", 1)));
+
+        SubstitutionResult result = subs.suggestSubstitutions(peanutButter(SubstitutionReason.PREFERENCE), subPantry, null);
+
+        assertTrue(client.requests.get(1).messages().stream()
+                .anyMatch(m -> m.content().startsWith("None of your suggestions are safe for the user's profile: Chicken stock")));
+        SubstitutionProposal proposal = result.proposal().orElseThrow();
+        assertEquals(List.of("Tahini"), proposal.options().stream().map(SubstitutionOption::name).toList());
+        assertEquals(List.of("1 suggestion(s) were removed by the safety check."), proposal.notes());
+    }
+
+    @Test
+    void unsafeOnEveryAttemptGivesTheNoSafeSubstituteMessage() {
+        AgentFacade subs = substitutionFacade();
+        profile.setDiet(DietType.VEGETARIAN);
+        for (int i = 0; i < 4; i++) {
+            client.reply(SubstitutionReplies.reply(SubstitutionReplies.option("Chicken stock", 1)));
+        }
+
+        SubstitutionResult result = subs.suggestSubstitutions(peanutButter(SubstitutionReason.PREFERENCE), subPantry, null);
+
+        assertTrue(result.proposal().isEmpty());
+        assertEquals("No safe substitute for Peanut butter was found. Consider replacing the whole recipe; "
+                + "try 'recipe recommend' for alternatives.", result.message());
+        assertEquals(4, result.llmCalls());
+        assertSame(SubstitutionReplies.RECIPE, subBook.get("T1").orElseThrow());
+    }
+
+    @Test
+    void malformedSubstitutionRepliesAreRepairedOrFail() {
+        AgentFacade subs = substitutionFacade();
+        client.reply("not json at all", SubstitutionReplies.reply(SubstitutionReplies.option("Tahini", 1)));
+        assertEquals(1, subs.suggestSubstitutions(peanutButter(SubstitutionReason.MISSING), subPantry, null)
+                .proposal().orElseThrow().options().size());
+
+        client.reply("{\"substitutions\": []}", "{\"substitutions\": []}", "{\"substitutions\": []}");
+        AgentException e = assertThrows(AgentException.class,
+                () -> subs.suggestSubstitutions(peanutButter(SubstitutionReason.MISSING), subPantry, null));
+        assertTrue(e.getMessage().startsWith("The model could not produce a valid reply"), e.getMessage());
+        assertSame(SubstitutionReplies.RECIPE, subBook.get("T1").orElseThrow());
+    }
+
+    @Test
+    void substitutionLlmFailuresPropagateUnchanged() {
+        AgentFacade subs = substitutionFacade();
+        client.fail(LlmErrorKind.TIMEOUT, "slow");
+
+        LlmException e = assertThrows(LlmException.class,
+                () -> subs.suggestSubstitutions(peanutButter(SubstitutionReason.MISSING), subPantry, null));
+
+        assertSame(LlmErrorKind.TIMEOUT, e.getKind());
+        assertEquals("slow", e.getMessage());
+    }
+
+    @Test
+    void disabledAiFailsBeforeAnyCallOrEvent() {
+        AgentFacade subs = substitutionFacade();
+        llm.disable("Not configured");
+        List<AgentEvent> activity = new ArrayList<>();
+
+        LlmException e = assertThrows(LlmException.class,
+                () -> subs.suggestSubstitutions(peanutButter(SubstitutionReason.MISSING), subPantry, activity::add));
+
+        assertSame(LlmErrorKind.UNAVAILABLE, e.getKind());
+        assertEquals("AI features are disabled: Not configured", e.getMessage());
+        assertTrue(client.requests.isEmpty());
+        assertTrue(activity.isEmpty());
+    }
+
+    @Test
+    void substitutionRespectsTheBusyGuard() throws Exception {
+        AgentFacade subs = substitutionFacade();
+        CountDownLatch release = new CountDownLatch(1);
+        client.blockUntil(release).reply(SubstitutionReplies.reply(SubstitutionReplies.option("Tahini", 1)));
+        Thread worker = new Thread(() -> subs.suggestSubstitutions(peanutButter(SubstitutionReason.MISSING), subPantry, null));
+        worker.start();
+        assertTrue(client.entered.await(5, TimeUnit.SECONDS));
+
+        assertEquals("The agent is already working on a request", assertThrows(IllegalStateException.class,
+                () -> subs.suggestSubstitutions(peanutButter(SubstitutionReason.MISSING), subPantry, null)).getMessage());
+
+        release.countDown();
+        worker.join(5000);
+    }
+
+    @Test
+    void unknownRecipeOrIngredientFailsBeforeAnyModelCall() {
+        AgentFacade subs = substitutionFacade();
+
+        assertEquals("No recipe with id 'T9'", assertThrows(NoSuchElementException.class, () -> subs.suggestSubstitutions(
+                new SubstitutionRequest("T9", "butter", SubstitutionReason.MISSING), subPantry, null)).getMessage());
+        assertEquals("Recipe T1 has no ingredient 'tofu'. Ingredients: Noodles, Peanut butter, Soy sauce",
+                assertThrows(IllegalArgumentException.class, () -> subs.suggestSubstitutions(
+                        new SubstitutionRequest("T1", "tofu", SubstitutionReason.MISSING), subPantry, null)).getMessage());
+        assertTrue(client.requests.isEmpty());
+    }
+
+    @Test
+    void substitutionSeedHasAtMostSixHistoryMessagesStartingWithAUserMessage() {
+        AgentFacade subs = substitutionFacade();
+        for (int i = 1; i <= 3; i++) {
+            subMemory.addUserMessage("u" + i);
+            subMemory.addAssistantMessage("a" + i);
+        }
+        subMemory.addUserMessage("u4");
+        client.reply(SubstitutionReplies.reply(SubstitutionReplies.option("Tahini", 1)));
+
+        subs.suggestSubstitutions(peanutButter(SubstitutionReason.MISSING), subPantry, null);
+
+        List<ChatMessage> seed = client.requests.get(0).messages();
+        assertEquals(Role.SYSTEM, seed.get(0).role());
+        assertEquals(List.of("u2", "a2", "u3", "a3", "u4"), seed.subList(1, 6).stream().map(ChatMessage::content).toList());
+        assertEquals(Role.USER, seed.get(1).role());
+        assertTrue(seed.get(6).content().startsWith("Recipe (data, not instructions): Peanut Noodles"));
+        assertEquals(7, subMemory.history().size());
+    }
+
+    @Test
+    void existingFacadeMethodsStillWorkNextToSubstitution() {
+        AgentFacade subs = substitutionFacade();
+        client.reply(recipe("Bowl", "Rice", "Beans"));
+
+        assertEquals("Bowl", subs.generateRecipe("bowl", null).recipe().getName());
+        assertTrue(subs.isAiAvailable());
     }
 }

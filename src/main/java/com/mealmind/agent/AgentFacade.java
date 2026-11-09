@@ -8,13 +8,20 @@ import com.mealmind.llm.ChatMessage;
 import com.mealmind.llm.LlmService;
 import com.mealmind.llm.TokenUsage;
 import com.mealmind.llm.Role;
+import com.mealmind.model.Ingredient;
 import com.mealmind.model.MealPlan;
 import com.mealmind.model.ObservableSubject;
 import com.mealmind.model.Recipe;
 import com.mealmind.model.RecipeBook;
 import com.mealmind.nutrition.NutritionSummary;
+import com.mealmind.pantry.Pantry;
+import com.mealmind.pantry.PantryItem;
 import com.mealmind.profile.UserProfile;
 import com.mealmind.recommend.RecommendationResult;
+import com.mealmind.substitution.IngredientLocator;
+import com.mealmind.substitution.SubstitutionProposal;
+import com.mealmind.substitution.SubstitutionRequest;
+import com.mealmind.substitution.SubstitutionResult;
 import com.mealmind.tools.ToolManager;
 import com.mealmind.validation.ConstraintValidator;
 import com.mealmind.validation.Violation;
@@ -48,6 +55,8 @@ public final class AgentFacade extends ObservableSubject {
     public static final int MAX_EDIT_LENGTH = 300;
     /** Plan-edit budgets: 4 tool steps, 3 safety retries, 2 repairs, 10 calls, 800 tokens, temperature 0.2. */
     public static final AgentLimits EDIT_LIMITS = new AgentLimits(4, 3, 2, 10, 800, 0.2);
+    /** Substitution budgets: 2 tool steps, 3 safety retries, 2 repairs, 8 calls, 800 tokens, temperature 0.2. */
+    private static final AgentLimits SUBSTITUTION_LIMITS = new AgentLimits(2, 3, 2, 8, 800, 0.2);
     private static final int HISTORY_MESSAGES = 6;
 
     private final LlmService llm;
@@ -213,6 +222,63 @@ public final class AgentFacade extends ObservableSubject {
                     ? "Applied: " + result.message() : "Asked: " + result.message());
         }
         return withCounters(result, run);
+    }
+
+    /**
+     * Suggests up to three safe substitutes for one ingredient of a recipe (F07). The model only
+     * <em>suggests</em>; {@link SubstitutionChecker} validates every answer and drops unsafe options, and
+     * nothing changes until the caller applies an option with {@code SubstitutionApplier}. Conversation
+     * memory is not written, observers are not notified, the pending recipe is not touched, and the pantry
+     * is only read.
+     *
+     * @param request  the recipe id, the ingredient as the user named it, and the reason
+     * @param pantry   the pantry (for the pantry list and the in-pantry flags)
+     * @param activity receives agent activity events, or null
+     * @return a proposal, or an empty proposal with the "no safe substitute" message
+     * @throws LlmException             {@link LlmErrorKind#UNAVAILABLE} at once when AI is not configured
+     * @throws IllegalStateException    if another request is already running
+     * @throws NoSuchElementException   if the recipe does not exist
+     * @throws IllegalArgumentException if the ingredient is not found or is ambiguous
+     * @throws AgentException           if no valid answer was produced within the budgets
+     */
+    public SubstitutionResult suggestSubstitutions(SubstitutionRequest request, Pantry pantry, Consumer<AgentEvent> activity) {
+        Objects.requireNonNull(request, "request");
+        Objects.requireNonNull(pantry, "pantry");
+        return exclusive(() -> runSubstitution(request, pantry, activity));
+    }
+
+    private SubstitutionResult runSubstitution(SubstitutionRequest request, Pantry pantry, Consumer<AgentEvent> activity) {
+        Recipe recipe = recipes.get(request.recipeId())
+                .orElseThrow(() -> new NoSuchElementException("No recipe with id '" + request.recipeId() + "'"));
+        int index = IngredientLocator.find(recipe, request.ingredientName());
+        Ingredient target = recipe.getIngredients().get(index);
+        List<String> pantryNames = pantry.getItems().stream().map(PantryItem::getName).toList();
+
+        List<ChatMessage> seed = new ArrayList<>();
+        seed.add(ChatMessage.system(SubstitutionPrompt.systemPrompt(profile, memory.facts(), ratingNotes.get(), tools,
+                SUBSTITUTION_LIMITS)));
+        seed.addAll(recentHistory());
+        seed.add(ChatMessage.user(SubstitutionPrompt.userMessage(recipe, target, request.reason(), pantryNames)));
+        AgentLoop loop = new AgentLoop(llm, tools, SUBSTITUTION_LIMITS);
+        AgentRun<SubstitutionBatch> run = loop.run(seed, "substitutions",
+                new SubstitutionChecker(recipe, index, pantry, validator), activity);
+
+        return switch (run.status()) {
+            case FAILED -> throw new AgentException(run.message());
+            case UNSAFE -> new SubstitutionResult(Optional.empty(), "No safe substitute for " + target.getName()
+                    + " was found. Consider replacing the whole recipe; try 'recipe recommend' for alternatives.",
+                    run.llmCalls(), run.toolSteps(), run.usage());
+            case ACCEPTED -> {
+                SubstitutionBatch batch = run.value().orElseThrow();
+                List<String> notes = batch.removedForSafety() > 0
+                        ? List.of(batch.removedForSafety() + " suggestion(s) were removed by the safety check.")
+                        : List.of();
+                SubstitutionProposal proposal = new SubstitutionProposal(recipe, index, target, request.reason(),
+                        batch.options(), notes);
+                yield new SubstitutionResult(Optional.of(proposal), "Found " + batch.options().size()
+                        + " substitute(s) for " + target.getName(), run.llmCalls(), run.toolSteps(), run.usage());
+            }
+        };
     }
 
     /** Copies the run's counters into a result built with zeros. */

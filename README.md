@@ -300,6 +300,26 @@ plan leftovers discard                 # drop the proposal
 - When no recipe in your book uses the expiring items, the message suggests `recipe generate "a dish using ..."`.
 - Limitations: CLI only (the Stage 1 "Clear Expiring Items" GUI button is not implemented); AI-drafted leftover recipes are not implemented; the pending proposal is kept for the current session only.
 
+#### Ingredient substitution (F07)
+
+`recipe substitute` asks the AI for up to three replacements for one ingredient of a recipe. A suggestion changes nothing until you apply it.
+
+```
+recipe substitute --id R109 --ingredient "peanut butter" --reason allergy   # show up to 3 safe options
+recipe substitute apply 1                                                  # replace the ingredient ('undo' restores the recipe)
+recipe substitute discard                                                  # drop the suggestion
+```
+
+- Reasons: `allergy`, `missing` (you do not have it) or `preference` (the default).
+- The ingredient can be named loosely when that is unambiguous: `chicken` finds "Chicken breast".
+- Each option shows the amount (the ratio is in the same unit as the original), a short note, `[in pantry]` when your pantry already holds enough, and its nutrition marked "(AI estimates)".
+- The AI only **suggests**. Every option is checked against your diet and allergens **before it is shown** and **again before it is applied**; an unsafe option is never shown or applied. If no safe substitute is found, MealMind suggests replacing the whole recipe (`recipe recommend`).
+- Applying is one undoable step. It prints the per-serving calorie change; the replacement's nutrition and cost are AI estimates.
+- Recipe **steps are not rewritten**: a warning names any step that still mentions the old ingredient.
+- Changes to the bundled sample recipes last for the current session only (like scaling); meals already in a plan keep their old recipe.
+- Needs AI configured (each request may make several model calls). Without AI it prints one `Error: AI features are disabled: ...` line.
+- Limitations: CLI only (the Stage 1 right-click "Suggest Substitute..." dialog is not implemented); one ingredient per request; no conversion between different units.
+
 ### Graphical interface
 The simplest way to open the window, from the project root:
 ```bash

@@ -33,9 +33,9 @@ All commands below were checked against `help` and run on the development machin
 | V4 | F04, N05, N03, N04 | CLI + GUI | **yes** | 6 min | "Video 4 shows F04 AI recipe generation with the safety gate, N05 saving and removing AI recipes, N03 agent memory, and N04 the agent's tools." |
 | V5 | F05, N06, F11 | CLI + GUI | no | 6 min | "Video 5 shows F05 rule-based weekly plan generation, N06 manual plan building and checks, and F11 the shopping list with export." |
 | V6 | F06, F09, F03 (AI part) | CLI + GUI | **yes** | 6 min | "Video 6 shows F06 natural-language plan editing, F09 nutrition analysis with AI commentary, and the AI re-ranking part of F03." |
-| V7 | F10, scope statement (F07) | CLI | no (`--ai` optional) | 3 min | "Video 7 shows F10 expiring-leftover planning in the CLI; F07 ingredient substitution is not implemented in this submission." |
+| V7 | F10, F07 | CLI | F07 **yes**; F10 no (`--ai` optional) | 6 min | "Video 7 shows F10 expiring-leftover planning and F07 AI ingredient substitution, both in the CLI." |
 
-Total about 35 minutes. Record V1 to V3 and V5 offline first; record V4 and V6 once the provider is configured.
+Total about 38 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first; record V4, V6 and the F07 part of V7 once the provider is configured.
 
 ---
 
@@ -224,8 +224,11 @@ Total about 35 minutes. Record V1 to V3 and V5 offline first; record V4 and V6 o
 - **Say:** "Matching is by ingredient name only; apply is one undoable step."
 - **Timestamp:** ______
 
-## F07 AI ingredient substitution (end of V7)
+## F07 AI ingredient substitution (V7, CLI; needs a real model)
 
-- **Interface:** none.
-- **Say:** "F07 ingredient substitution is not implemented in this submission; there is no partial code for it."
+- **Interface:** CLI only (the Stage 1 right-click "Suggest Substitute..." dialog is not implemented; say so).
+- **CLI input:** `profile allergy add peanut` (optional), `pantry add "Sunflower seed butter" 200 g`, `recipe show R109`, `recipe substitute --id R109 --ingredient "peanut butter" --reason allergy`, `recipe show R109` (unchanged), `recipe substitute apply 1`, `recipe show R109`, `undo`.
+- **Expected output:** `[agent] ...` activity, then `Substitutes for Peanut butter in R109 Peanut Butter Banana Toast (reason: allergy):` with up to three numbered lines such as `  1. 2 tbsp Sunflower seed butter (x1) - ... [in pantry]` and `     about ... kcal, P ... g, C ... g, F ... g (AI estimates)`, the apply hint and the `Agent: ...` stats line; after apply: `Substituted: Substituted Peanut butter with ... in Peanut Butter Banana Toast`, `Per serving: 457 -> ... kcal`, `Warning: Step 2 may still mention Peanut butter; steps are not rewritten`, `Note: R109 is a bundled sample recipe; this change lasts for this session only.`; `undo` prints `Undone: Substitute Peanut butter with ...`.
+- **AI:** the model only suggests names, ratios and nutrition estimates; code validates them, drops unsafe options before they are shown and checks the chosen one again before applying.
+- **Error cases:** `recipe substitute --id R109 --ingredient nothing` lists the recipe's ingredients; `--reason banana` prints `Error: Unknown reason 'banana'. Use: allergy, missing, preference`; changing the profile so the chosen option becomes unsafe makes `apply` print `Error: Refused: ...` and nothing changes; with AI disabled one `Error: AI features are disabled: ...` line.
 - **Timestamp:** ______

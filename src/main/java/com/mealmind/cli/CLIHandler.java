@@ -92,6 +92,7 @@ public final class CLIHandler {
     private final AnalysisCommands analysisCommands;
     private final PlanEditCommands planEditCommands;
     private final LeftoverCommands leftoverCommands;
+    private final SubstituteCommands substituteCommands;
     private ShoppingListGenerator watchedGenerator;
 
     /**
@@ -117,6 +118,7 @@ public final class CLIHandler {
         this.analysisCommands = new AnalysisCommands(ctx, out);
         this.planEditCommands = new PlanEditCommands(ctx, out);
         this.leftoverCommands = new LeftoverCommands(ctx, out);
+        this.substituteCommands = new SubstituteCommands(ctx, out);
         watch(ctx.generator());
     }
 
@@ -239,6 +241,8 @@ public final class CLIHandler {
         out.println("  " + AgentCommands.GENERATE_USAGE + "   (AI agent drafts a recipe; it is not saved)");
         out.println("  recipe pending");
         out.println("  recipe save   (keeps the pending AI recipe; undo removes it)");
+        out.println("  " + SubstituteCommands.USAGE + "   (F07: AI suggests up to 3 safe substitutes; nothing changes yet)");
+        out.println("  " + SubstituteCommands.APPLY_USAGE + "   (apply re-checks safety; undo reverts it)");
         out.println("  " + PreferenceCommands.REMOVE_USAGE + "   (saved recipes only)");
         out.println("  " + PreferenceCommands.RATE_USAGE);
         out.println("  " + PreferenceCommands.FAVORITE_USAGE);
@@ -350,6 +354,7 @@ public final class CLIHandler {
             case "favorite" -> preferenceCommands.favorite(rest, true);
             case "unfavorite" -> preferenceCommands.favorite(rest, false);
             case "save" -> preferenceCommands.save();
+            case "substitute" -> substituteCommands.handle(rest);
             case "remove" -> preferenceCommands.remove(rest);
             default -> throw new UsageException(RECIPE_USAGE);
         }
