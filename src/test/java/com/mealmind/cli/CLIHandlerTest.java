@@ -17,6 +17,7 @@ import com.mealmind.model.Ingredient;
 import com.mealmind.model.MealType;
 import com.mealmind.model.Recipe;
 import com.mealmind.model.Unit;
+import com.mealmind.profile.DietType;
 import com.mealmind.shopping.ShoppingListFormatter;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -1366,5 +1367,193 @@ class CLIHandlerTest {
         assertTrue(output.lines().anyMatch(line -> line.equals("Edit applied: Replaced Day 2 DINNER with Red Lentil Soup")), output);
         assertFalse(output.contains("Black Bean Tacos"), output);
         assertEquals("R103", dinnerOnDay(2));
+    }
+
+    // ---- Commit 20: plan leftovers (F10) ----
+
+    private static final Clock F10_CLOCK = Clock.fixed(Instant.parse("2026-11-09T12:00:00Z"), ZoneOffset.UTC);
+    private static final String TOMORROW = "2026-11-10";
+    private static final String LEFTOVERS_USAGE = "Usage: plan leftovers [--days 1-14] [--meals 1-6] [--overwrite] [--ai]";
+
+    /** Starts a fresh session on 2026-11-09 (the AI stays disabled unless a test scripts it). */
+    private void leftoverSession() {
+        ctx = ApplicationContext.create(dir.resolve("f10"), F10_CLOCK);
+        buffer = new ByteArrayOutputStream();
+        handler = new CLIHandler(ctx, new BufferedReader(new StringReader("")),
+                new PrintStream(buffer, true, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void planLeftoversProposesWithoutChangingThePlan() {
+        leftoverSession();
+        run("pantry add \"Red lentils\" 400 g " + TOMORROW, "plan generate --days 3");
+        String before = run("plan show");
+
+        String output = run("plan leftovers");
+
+        assertContains(output, "Expiring within 3 days: Red lentils (expires in 1 day)");
+        assertContains(output, "Note: 1 meal(s) proposed for 1 expiring item(s).");
+        assertContains(output, "Proposal (nothing applied yet):");
+        assertContains(output, "  Day 1 BREAKFAST: Red Lentil Soup - Uses Red lentils (expires in 1 day)");
+        assertContains(output, "Use 'plan leftovers apply' to add these meals ('undo' reverts them all) or 'plan leftovers discard'.");
+        assertEquals(before, run("plan show"));
+    }
+
+    @Test
+    void planLeftoversApplyAddsAllMealsAndOneUndoRemovesThem() {
+        leftoverSession();
+        run("pantry add \"Red lentils\" 400 g " + TOMORROW, "pantry add Spinach 200 g " + TOMORROW, "plan generate --days 3",
+                "plan leftovers");
+        String before = run("plan show");
+
+        String applied = run("plan leftovers apply");
+
+        assertContains(applied, "Applied: Add 2 leftover meal(s) to the plan.");
+        assertContains(applied, "Day 1 BREAKFAST: Spinach Mushroom Omelette (1 serving)");
+        assertContains(applied, "Day 1 SNACK: Red Lentil Soup (1 serving)");
+        assertContains(applied, "Use 'undo' to revert.");
+        String after = run("plan show");
+        assertContains(after, "Breakfast: Spinach Mushroom Omelette (1 serving)");
+        assertContains(after, "Snack: Red Lentil Soup (1 serving)");
+
+        assertContains(run("undo"), "Undone: Add 2 leftover meal(s) to the plan");
+        assertEquals(before, run("plan show"));
+        assertContains(run("plan leftovers apply"), "No pending leftover proposal.");
+    }
+
+    @Test
+    void planLeftoversApplyAndDiscardWithoutAProposal() {
+        leftoverSession();
+
+        assertContains(run("plan leftovers apply"), "No pending leftover proposal.");
+        assertContains(run("plan leftovers discard"), "No pending leftover proposal.");
+
+        run("pantry add \"Red lentils\" 400 g " + TOMORROW, "plan leftovers");
+        assertContains(run("plan leftovers discard"), "Discarded the leftover proposal.");
+        assertContains(run("plan leftovers apply"), "No pending leftover proposal.");
+        assertEquals(28, ctx.plan().getEmptySlots().size());
+    }
+
+    @Test
+    void planLeftoversStaleProposalIsRefusedAndCleared() {
+        leftoverSession();
+        run("pantry add \"Red lentils\" 400 g " + TOMORROW, "plan leftovers", "plan new --days 2");
+
+        assertContains(run("plan leftovers apply"),
+                "Error: The plan changed since this proposal was made. Run 'plan leftovers' again.");
+        assertContains(run("plan leftovers apply"), "No pending leftover proposal.");
+        assertEquals(8, ctx.plan().getEmptySlots().size());
+    }
+
+    @Test
+    void planLeftoversSlotFilledMeanwhileKeepsTheProposal() {
+        leftoverSession();
+        run("pantry add \"Red lentils\" 400 g " + TOMORROW, "plan leftovers", "plan set 1 breakfast R102");
+
+        assertContains(run("plan leftovers apply"), "Error: Day 1 BREAKFAST is no longer empty; run 'plan leftovers' again.");
+        assertContains(run("plan leftovers discard"), "Discarded the leftover proposal.");
+    }
+
+    @Test
+    void planLeftoversNothingToDoMessages() {
+        leftoverSession();
+        assertContains(run("plan leftovers"), "The pantry is empty; nothing to do.");
+
+        run("pantry add Rice 500 g", "pantry add Milk 1 l 2026-11-20");
+        assertContains(run("plan leftovers"), "No pantry items expire within 3 days; nothing to do.");
+        assertContains(run("plan leftovers apply"), "No pending leftover proposal.");
+    }
+
+    @Test
+    void planLeftoversNeedsOverwriteWhenThePlanIsFull() {
+        leftoverSession();
+        run("pantry add \"Red lentils\" 400 g " + TOMORROW, "plan new --days 1", "plan set 1 breakfast R102",
+                "plan set 1 lunch R105", "plan set 1 dinner R108", "plan set 1 snack R110");
+
+        assertContains(run("plan leftovers"), "The plan has no empty slots. Use --overwrite to let leftover meals "
+                + "replace existing ones (undoable with 'undo').");
+        assertContains(run("plan leftovers apply"), "No pending leftover proposal.");
+
+        String output = run("plan leftovers --overwrite");
+        assertContains(output, "Note: Replaces 1 existing meal(s).");
+        assertContains(output, "  Day 1 BREAKFAST: Red Lentil Soup - Uses Red lentils (expires in 1 day) "
+                + "[replaces Berry Overnight Oats (1 serving)]");
+
+        run("plan leftovers apply");
+        assertEquals("R103", ctx.plan().getMeal(1, MealType.BREAKFAST).orElseThrow().getRecipes().get(0).getId());
+        run("undo");
+        assertEquals("R102", ctx.plan().getMeal(1, MealType.BREAKFAST).orElseThrow().getRecipes().get(0).getId());
+    }
+
+    @Test
+    void planLeftoversNeverProposesUnsafeRecipes() {
+        leftoverSession();
+        ctx.profile().setDiet(DietType.VEGETARIAN);
+        run("pantry add \"Chicken breast\" 500 g " + TOMORROW);
+
+        String blocked = run("plan leftovers");
+        assertContains(blocked, "No safe recipe in your recipe book uses: Chicken breast. "
+                + "Try: recipe generate \"a dish using Chicken breast\"");
+
+        run("pantry add \"Red lentils\" 400 g " + TOMORROW);
+        String output = run("plan leftovers --meals 6");
+        assertContains(output, "Red Lentil Soup");
+        assertFalse(output.contains("Chicken Stir-Fry"), output);
+    }
+
+    @Test
+    void planLeftoversRejectsBadOptions() {
+        leftoverSession();
+        run("pantry add \"Red lentils\" 400 g " + TOMORROW);
+
+        for (String line : new String[] {"plan leftovers --days 0", "plan leftovers --days 15", "plan leftovers --meals 0",
+                "plan leftovers --meals 7", "plan leftovers --days x", "plan leftovers --days", "plan leftovers --bogus 1",
+                "plan leftovers now", "plan leftovers --ai --ai", "plan leftovers apply now"}) {
+            assertEquals(LEFTOVERS_USAGE + "\n", run(line).replace("\r", ""), line);
+        }
+        assertContains(run("plan leftovers --days 14 --meals 6"), "Proposal (nothing applied yet):");
+    }
+
+    @Test
+    void planLeftoversAiReordersTheSafeCandidates() {
+        leftoverSession();
+        ScriptedAiClient client = useScriptedAi().reply(
+                "{\"ranking\": [{\"id\": \"R999\", \"reason\": \"Invented\"}]}",
+                "{\"ranking\": [{\"id\": \"R103\", \"reason\": \"Warm soup first\"}, "
+                        + "{\"id\": \"R107\", \"reason\": \"Quick omelette\"}]}");
+        run("pantry add \"Red lentils\" 400 g " + TOMORROW, "pantry add Spinach 200 g " + TOMORROW, "plan generate --days 3");
+
+        String output = run("plan leftovers --ai");
+
+        assertEquals(2, client.requests.size());
+        assertContains(output, "[agent] ");
+        assertContains(output, "  Day 1 BREAKFAST: Red Lentil Soup - Warm soup first");
+        assertContains(output, "  Day 1 SNACK: Spinach Mushroom Omelette - Quick omelette");
+        assertContains(output, "Note: Ranked with AI assistance (it can only reorder these safe recipes).");
+        assertFalse(output.contains("Invented"), output);
+        assertFalse(output.contains("AI explanation unavailable"), output);
+
+        assertContains(run("plan leftovers apply"), "Applied: Add 2 leftover meal(s) to the plan.");
+        assertEquals("R103", ctx.plan().getMeal(1, MealType.BREAKFAST).orElseThrow().getRecipes().get(0).getId());
+    }
+
+    @Test
+    void planLeftoversAiDisabledKeepsTheDeterministicProposal() {
+        leftoverSession();
+        run("pantry add \"Red lentils\" 400 g " + TOMORROW, "pantry add Spinach 200 g " + TOMORROW);
+
+        String output = run("plan leftovers --ai");
+
+        assertContains(output, "  Day 1 BREAKFAST: Spinach Mushroom Omelette - Uses Spinach (expires in 1 day)");
+        assertEquals(1, output.split("AI explanation unavailable: AI features are disabled: ", -1).length - 1, output);
+        assertTrue(output.indexOf("Proposal (nothing applied yet):") < output.indexOf("AI explanation unavailable"), output);
+        assertFalse(output.contains("[agent]"), output);
+        assertContains(run("plan leftovers apply"), "Applied: Add 2 leftover meal(s) to the plan.");
+    }
+
+    @Test
+    void helpMentionsPlanLeftovers() {
+        String help = run("help");
+        assertContains(help, "plan leftovers [--days 1-14] [--meals 1-6] [--overwrite] [--ai] | plan leftovers apply | plan leftovers discard");
     }
 }

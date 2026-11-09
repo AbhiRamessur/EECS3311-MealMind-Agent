@@ -281,6 +281,25 @@ Limitations:
 - The AI may misread a request; that is why every change is undoable.
 - The safety check is keyword-based: it cannot see hidden ingredients and is not medical advice.
 
+#### Using up expiring pantry items (F10)
+
+`plan leftovers` proposes meals from your recipe book that use pantry items expiring soon, and puts them into the plan's **empty** slots. A proposal changes nothing until you apply it.
+
+```
+plan leftovers --days 3 --meals 3      # show a proposal (nothing is changed yet)
+plan leftovers apply                   # add every proposed meal as ONE undoable step ('undo' removes them all)
+plan leftovers discard                 # drop the proposal
+```
+
+- Example: after `pantry add "Red lentils" 400 g 2026-11-10` and `plan generate --days 3`, `plan leftovers` proposes `Day 1 BREAKFAST: Red Lentil Soup - Uses Red lentils (expires in 1 day)`.
+- `--days 1-14` (default 3) sets how far ahead to look; expired items are included. `--meals 1-6` (default 3) limits the number of meals.
+- When the plan has no empty slots, add `--overwrite`: filled slots are then used after the empty ones, and replaced meals are marked `[replaces ...]`.
+- Every recipe is safety-checked against your profile when the proposal is made **and again** when it is applied; recipes you rated 1-2 stars are skipped while others are available.
+- Matching is by ingredient **name** only ("lentils" matches "Red lentils"; quantities are not compared).
+- `--ai` is optional: the AI may only **reorder** the safe recipes the code already chose and explain them; it can never add a recipe. If the AI is unavailable, the normal proposal is printed followed by one `AI explanation unavailable: ...` line.
+- When no recipe in your book uses the expiring items, the message suggests `recipe generate "a dish using ..."`.
+- Limitations: CLI only (the Stage 1 "Clear Expiring Items" GUI button is not implemented); AI-drafted leftover recipes are not implemented; the pending proposal is kept for the current session only.
+
 ### Graphical interface
 The simplest way to open the window, from the project root:
 ```bash

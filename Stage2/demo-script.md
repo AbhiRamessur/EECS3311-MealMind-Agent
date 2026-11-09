@@ -33,9 +33,9 @@ All commands below were checked against `help` and run on the development machin
 | V4 | F04, N05, N03, N04 | CLI + GUI | **yes** | 6 min | "Video 4 shows F04 AI recipe generation with the safety gate, N05 saving and removing AI recipes, N03 agent memory, and N04 the agent's tools." |
 | V5 | F05, N06, F11 | CLI + GUI | no | 6 min | "Video 5 shows F05 rule-based weekly plan generation, N06 manual plan building and checks, and F11 the shopping list with export." |
 | V6 | F06, F09, F03 (AI part) | CLI + GUI | **yes** | 6 min | "Video 6 shows F06 natural-language plan editing, F09 nutrition analysis with AI commentary, and the AI re-ranking part of F03." |
-| V7 | Scope statement (F07, F10) | none | no | 0.5 min (optional, can be the end of V6) | "F07 ingredient substitution and F10 leftover planning are not implemented in this submission." |
+| V7 | F10, scope statement (F07) | CLI | no (`--ai` optional) | 3 min | "Video 7 shows F10 expiring-leftover planning in the CLI; F07 ingredient substitution is not implemented in this submission." |
 
-Total about 33 minutes. Record V1 to V3 and V5 offline first; record V4 and V6 once the provider is configured.
+Total about 35 minutes. Record V1 to V3 and V5 offline first; record V4 and V6 once the provider is configured.
 
 ---
 
@@ -214,8 +214,18 @@ Total about 33 minutes. Record V1 to V3 and V5 offline first; record V4 and V6 o
 - **Alternative case:** without AI, `--explain` prints the numbers and then `AI explanation unavailable: AI features are disabled: ...`; with an empty plan: `No meals planned; nothing to analyze.`
 - **Timestamp:** ______
 
-## F07 AI ingredient substitution and F10 leftover planning (V7 or the end of V6)
+## F10 Expiring leftover utilization (V7, CLI; works offline)
+
+- **Interface:** CLI only (the Stage 1 "Clear Expiring Items" button is not implemented; say so).
+- **CLI input:** `pantry add "Red lentils" 400 g <tomorrow yyyy-MM-dd>`, `pantry add Spinach 200 g <tomorrow>`, `plan generate --days 3`, `plan leftovers`, `plan show`, `plan leftovers apply`, `plan show`, `undo`.
+- **Expected output:** `Expiring within 3 days: Red lentils (expires in 1 day); Spinach (expires in 1 day)`, `Note: 2 meal(s) proposed for 2 expiring item(s).`, `Proposal (nothing applied yet):` with `  Day 1 BREAKFAST: Spinach Mushroom Omelette - Uses Spinach (expires in 1 day)` and `  Day 1 SNACK: Red Lentil Soup - Uses Red lentils (expires in 1 day)`; the first `plan show` is unchanged; `Applied: Add 2 leftover meal(s) to the plan.`; one `undo` prints `Undone: Add 2 leftover meal(s) to the plan` and both meals disappear.
+- **AI:** none by default. Optional: `plan leftovers --ai` lets the model only reorder the same safe recipes (`Note: Ranked with AI assistance ...`); without a model it prints the deterministic proposal and then one `AI explanation unavailable: ...` line.
+- **Error cases:** `plan leftovers --days 0` prints the usage line; with no expiring items `No pantry items expire within 3 days; nothing to do.`; with a full plan `The plan has no empty slots. Use --overwrite ...`, and `plan leftovers --overwrite` marks replacements with `[replaces ...]`; with a vegetarian profile and only chicken expiring: `No safe recipe in your recipe book uses: Chicken breast. Try: recipe generate "a dish using Chicken breast"`.
+- **Say:** "Matching is by ingredient name only; apply is one undoable step."
+- **Timestamp:** ______
+
+## F07 AI ingredient substitution (end of V7)
 
 - **Interface:** none.
-- **Say:** "F07 ingredient substitution and F10 expiring-leftover planning are not implemented in this submission; there is no partial code for them. Expiry dates are tracked and shown in the pantry."
+- **Say:** "F07 ingredient substitution is not implemented in this submission; there is no partial code for it."
 - **Timestamp:** ______

@@ -91,6 +91,7 @@ public final class CLIHandler {
     private final PlanGenerationCommands planGenerationCommands;
     private final AnalysisCommands analysisCommands;
     private final PlanEditCommands planEditCommands;
+    private final LeftoverCommands leftoverCommands;
     private ShoppingListGenerator watchedGenerator;
 
     /**
@@ -115,6 +116,7 @@ public final class CLIHandler {
         this.planGenerationCommands = new PlanGenerationCommands(ctx, () -> watch(ctx.generator()), out);
         this.analysisCommands = new AnalysisCommands(ctx, out);
         this.planEditCommands = new PlanEditCommands(ctx, out);
+        this.leftoverCommands = new LeftoverCommands(ctx, out);
         watch(ctx.generator());
     }
 
@@ -226,6 +228,7 @@ public final class CLIHandler {
         out.println("  plan strategies");
         out.println("  " + AnalysisCommands.NUTRITION_USAGE + "   (--explain adds AI commentary)");
         out.println("  " + PlanEditCommands.EDIT_USAGE + "   (AI interprets one change; undo reverts it)");
+        out.println("  " + LeftoverCommands.USAGE + " | plan leftovers apply | plan leftovers discard   (F10: use up expiring items; apply is one undoable step)");
         out.println("  plan undo | plan redo   (same as undo / redo)");
         out.println("  profile show");
         out.println("  " + ProfileCommands.DIET_USAGE);
@@ -434,6 +437,7 @@ public final class CLIHandler {
             case "strategies" -> planGenerationCommands.strategies(rest);
             case "nutrition" -> analysisCommands.nutrition(rest);
             case "edit" -> planEditCommands.edit(rest);
+            case "leftovers" -> leftoverCommands.handle(rest);
             case "undo" -> undo();
             case "redo" -> redo();
             default -> throw new UsageException(PLAN_USAGE);
