@@ -8,6 +8,7 @@ import com.mealmind.model.MealPlan;
 import com.mealmind.model.MealType;
 import com.mealmind.shopping.ShoppingItem;
 import com.mealmind.shopping.ShoppingListFormatter;
+import com.mealmind.substitution.SubstitutionReason;
 import com.mealmind.model.Unit;
 import com.mealmind.profile.DietType;
 import java.io.IOException;
@@ -307,6 +308,29 @@ public final class GuiSelfTest {
                             && generate.saveButton().isDisabled() && generate.discardButton().isDisabled()
                             && generate.unavailableLabel().isVisible()
                             && generate.unavailableLabel().getText().startsWith("AI unavailable: ");
+                }),
+                new Check("selecting R101 fills the substitute ingredient choice, chicken first", () -> {
+                    recipes.select("R101");
+                    SubstitutePane substitute = details.substitute();
+                    return substitute.ingredientChoice().getItems().size() == 7
+                            && substitute.ingredientChoice().getItems().get(0).equals("Chicken breast")
+                            && "Chicken breast".equals(substitute.ingredientChoice().getValue());
+                }),
+                new Check("Suggest substitutes is disabled with a visible reason when AI is not configured", () -> {
+                    SubstitutePane substitute = details.substitute();
+                    return substitute.suggestButton().isDisabled() && substitute.unavailableLabel().isVisible()
+                            && substitute.unavailableLabel().getText().startsWith("AI unavailable: ")
+                            && substitute.suggestButton().getTooltip().getText().contains("AI features");
+                }),
+                new Check("the reason choice offers Allergy, Missing and Preference with Preference selected", () -> {
+                    SubstitutePane substitute = details.substitute();
+                    return substitute.reasonChoice().getItems().equals(List.of(SubstitutionReason.values()))
+                            && substitute.reasonChoice().getValue() == SubstitutionReason.PREFERENCE;
+                }),
+                new Check("Apply selected and Discard are disabled while no suggestion is pending", () -> {
+                    SubstitutePane substitute = details.substitute();
+                    return substitute.applyButton().isDisabled() && substitute.discardButton().isDisabled()
+                            && !substitute.session().isPending() && substitute.table().getItems().isEmpty();
                 }));
         for (Check check : checks) {
             String failure = check(out, check.name(), check.test());

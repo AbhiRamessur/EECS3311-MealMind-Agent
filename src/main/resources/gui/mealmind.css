@@ -142,3 +142,10 @@
     -fx-font-weight: bold;
     -fx-text-fill: #2b3440;
 }
+
+/* Recipes tab: Substitute an ingredient (F07) */
+
+.substitute-pending {
+    -fx-font-weight: bold;
+    -fx-text-fill: #2b3440;
+}

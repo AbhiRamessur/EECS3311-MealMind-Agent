@@ -3,10 +3,13 @@ package com.mealmind.gui;
 import com.mealmind.app.ApplicationContext;
 import com.mealmind.command.RemoveRecipeCommand;
 import com.mealmind.command.ScaleRecipeCommand;
+import com.mealmind.gui.logic.BackgroundRunner;
+import com.mealmind.gui.logic.BusyFlag;
 import com.mealmind.gui.logic.FormResult;
 import com.mealmind.gui.logic.RecipeDetail;
 import com.mealmind.gui.logic.RecipeDetails;
 import com.mealmind.gui.logic.ScaleForm;
+import com.mealmind.gui.logic.UiThread;
 import com.mealmind.model.Recipe;
 import com.mealmind.preferences.RecipePreferences;
 import java.util.Objects;
@@ -29,7 +32,8 @@ import javafx.scene.layout.VBox;
 /**
  * The Recipes tab's Details section: the selected recipe as {@code recipe show} prints it, plus rating,
  * favourite, scale and remove controls. Ratings and favourites change {@link RecipePreferences} directly
- * (not undoable, as in the CLI); scaling and removing run commands through the shared history.
+ * (not undoable, as in the CLI); scaling and removing run commands through the shared history. Below them, the
+ * {@link SubstitutePane} ("Substitute an ingredient", F07) suggests and applies ingredient substitutes.
  */
 final class RecipeDetailsPane extends VBox {
 
@@ -46,12 +50,15 @@ final class RecipeDetailsPane extends VBox {
     private final TextField servings = new TextField();
     private final Button scale = new Button("Scale");
     private final Button remove = new Button("Remove saved recipe");
+    private final SubstitutePane substitute;
     private String recipeId;
 
-    RecipeDetailsPane(ApplicationContext ctx, BiConsumer<String, Boolean> status) {
+    RecipeDetailsPane(ApplicationContext ctx, BiConsumer<String, Boolean> status, BackgroundRunner runner, UiThread ui,
+                      BusyFlag aiBusy) {
         super(8);
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.status = Objects.requireNonNull(status, "status");
+        this.substitute = new SubstitutePane(ctx, runner, ui, status, aiBusy);
         title.getStyleClass().add("detail-title");
         body.setEditable(false);
         body.setWrapText(true);
@@ -71,7 +78,7 @@ final class RecipeDetailsPane extends VBox {
         Label servingsLabel = new Label("Servings");
         servingsLabel.setLabelFor(servings);
         getChildren().addAll(title, summary, body, new HBox(8, ratingLabel, rating, rate, favorite),
-                new HBox(8, servingsLabel, servings, scale, remove));
+                new HBox(8, servingsLabel, servings, scale, remove), substitute);
         VBox.setVgrow(body, Priority.ALWAYS);
         getStyleClass().add("tab-content");
         show(null);
@@ -96,6 +103,7 @@ final class RecipeDetailsPane extends VBox {
         boolean bundled = !none && ctx.isBundledRecipe(recipeId);
         remove.setDisable(none || bundled);
         remove.setTooltip(new Tooltip(bundled ? "Bundled sample recipes cannot be removed" : "Remove this saved recipe (undoable)"));
+        substitute.showRecipe(recipeId);
     }
 
     private static String bodyText(RecipeDetail detail) {
@@ -173,6 +181,15 @@ final class RecipeDetailsPane extends VBox {
 
     String recipeId() {
         return recipeId;
+    }
+
+    SubstitutePane substitute() {
+        return substitute;
+    }
+
+    /** Closes the substitution section's bindings. */
+    void close() {
+        substitute.close();
     }
 
     ChoiceBox<String> ratingChoice() {

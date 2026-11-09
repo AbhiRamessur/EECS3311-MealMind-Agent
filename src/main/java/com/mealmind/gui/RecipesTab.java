@@ -13,6 +13,7 @@ import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.geometry.Orientation;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
@@ -28,7 +29,8 @@ import javafx.scene.layout.VBox;
  * The Recipes tab (F03, F04, F08, F12): a filterable table of every recipe on the left (unsafe recipes are
  * listed but flagged) and, on the right, the Details, Recommendations and Generate sections. It uses the
  * same recipe book, preferences, commands and agent facade as the CLI; {@link MainController} subscribes
- * it to their notifications.
+ * it to their notifications. Its AI sections (Recommendations, Generate, Substitute) use the window's shared AI
+ * busy flag, so no two AI jobs in the application overlap.
  */
 final class RecipesTab extends Tab {
 
@@ -39,13 +41,15 @@ final class RecipesTab extends Tab {
     private final RecipeDetailsPane details;
     private final RecommendPane recommend;
     private final GeneratePane generate;
+    /** True while {@link #refresh} reloads the table, so the transient empty selection is not shown. */
+    private boolean refreshing;
 
-    RecipesTab(ApplicationContext ctx, BackgroundRunner runner, UiThread ui, BiConsumer<String, Boolean> status) {
+    RecipesTab(ApplicationContext ctx, BackgroundRunner runner, UiThread ui, BiConsumer<String, Boolean> status, BusyFlag busy) {
         super("Recipes");
         this.ctx = Objects.requireNonNull(ctx, "ctx");
+        Objects.requireNonNull(busy, "busy");
         setClosable(false);
-        BusyFlag busy = new BusyFlag();
-        details = new RecipeDetailsPane(ctx, status);
+        details = new RecipeDetailsPane(ctx, status, runner, ui, busy);
         recommend = new RecommendPane(ctx, runner, ui, status, busy, this::select);
         generate = new GeneratePane(ctx, runner, ui, status, busy);
 
@@ -73,7 +77,11 @@ final class RecipesTab extends Tab {
                 }
             }
         });
-        table.getSelectionModel().selectedItemProperty().addListener((obs, old, row) -> details.show(row == null ? null : row.id()));
+        table.getSelectionModel().selectedItemProperty().addListener((obs, old, row) -> {
+            if (!refreshing) {
+                details.show(row == null ? null : row.id());
+            }
+        });
 
         Label filterLabel = new Label("Filter");
         filterLabel.setLabelFor(filter);
@@ -81,7 +89,9 @@ final class RecipesTab extends Tab {
         VBox left = new VBox(8, new HBox(8, filterLabel, filter, favoritesOnly), table);
         VBox.setVgrow(table, Priority.ALWAYS);
         left.getStyleClass().add("tab-content");
-        TabPane sections = new TabPane(new Tab("Details", details), new Tab("Recommendations", recommend),
+        ScrollPane detailsScroll = new ScrollPane(details);
+        detailsScroll.setFitToWidth(true);
+        TabPane sections = new TabPane(new Tab("Details", detailsScroll), new Tab("Recommendations", recommend),
                 new Tab("Generate", generate));
         sections.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         SplitPane split = new SplitPane(left, sections);
@@ -101,9 +111,16 @@ final class RecipesTab extends Tab {
     /** Reloads the table (keeping the selection) and the details; called on recipe, preference and profile changes. */
     void refresh() {
         String selected = details.recipeId();
-        table.getItems().setAll(RecipeRows.of(ctx.recipeBook(), ctx.preferences(), ctx.validator(), ctx::isBundledRecipe,
-                favoritesOnly.isSelected(), filter.getText()));
-        if (selected != null && !select(selected)) {
+        refreshing = true;
+        boolean reselected;
+        try {
+            table.getItems().setAll(RecipeRows.of(ctx.recipeBook(), ctx.preferences(), ctx.validator(), ctx::isBundledRecipe,
+                    favoritesOnly.isSelected(), filter.getText()));
+            reselected = selected != null && select(selected);
+        } finally {
+            refreshing = false;
+        }
+        if (selected != null && !reselected) {
             details.show(null);
         } else if (selected != null) {
             details.show(selected);
@@ -130,6 +147,11 @@ final class RecipesTab extends Tab {
             }
         }
         return false;
+    }
+
+    /** Closes the substitution section's bindings. */
+    void close() {
+        details.close();
     }
 
     TableView<RecipeRow> table() {

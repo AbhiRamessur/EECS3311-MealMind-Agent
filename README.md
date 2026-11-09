@@ -319,7 +319,8 @@ recipe substitute discard                                                  # dro
 - Recipe **steps are not rewritten**: a warning names any step that still mentions the old ingredient.
 - Changes to the bundled sample recipes last for the current session only (like scaling); meals already in a plan keep their old recipe.
 - Needs AI configured (each request may make several model calls). Without AI it prints one `Error: AI features are disabled: ...` line.
-- Limitations: CLI only (the Stage 1 right-click "Suggest Substitute..." dialog is not implemented); one ingredient per request; no conversion between different units.
+- The same flow is in the GUI's Recipes tab ("Substitute an ingredient"; see "Graphical interface").
+- Limitations: one ingredient per request; no conversion between different units.
 
 ### Graphical interface
 The simplest way to open the window, from the project root:
@@ -345,7 +346,7 @@ The window contains:
 
 The GUI is a thin front end over the same session objects as the CLI: adding or removing a pantry item runs the same undoable command, so **Undo** reverts it exactly like `undo` in the CLI, and every change is saved to the same files (`profile.json`, `pantry.json`). One running program uses one front end; both read the same files on the next start.
 
-The GUI self-test checks the wiring without showing a window: it drives the real Profile, Pantry (including "Use up expiring items"), Recipes, Plan, Shopping List and Nutrition controls on a temporary data directory (no AI, no network) and prints one line per check, 32 in all (exit code 0 ok, 1 failed, 3 skipped when JavaFX cannot start):
+The GUI self-test checks the wiring without showing a window: it drives the real Profile, Pantry (including "Use up expiring items"), Recipes (including "Substitute an ingredient"), Plan, Shopping List and Nutrition controls on a temporary data directory (no AI, no network) and prints one line per check, 36 in all (exit code 0 ok, 1 failed, 3 skipped when JavaFX cannot start):
 ```bash
 mvn -q javafx:run -Dmealmind.javafxArgs=--gui-selftest
 ```
@@ -372,7 +373,14 @@ The left side lists every recipe (id, name, servings, prep time, kcal per servin
 - **Recommendations**: Pantry first, max minutes and limit (default 5), then **Recommend**. The list is computed by code; tick **Explain with AI** to have the AI re-rank it afterwards (it can only reorder the same recipes). If the AI fails, the computed list stays and the status bar says "AI explanation unavailable: ...". Clicking a row selects that recipe on the left.
 - **Generate**: describe a recipe and press **Generate**. The agent's activity appears live in the **Agent activity** log; the result is a **pending** preview with its safety check. **Save** adds it to your recipe book (re-checked against your current profile; disabled for an unsafe recipe) and **Discard** drops it.
 
-**Explain with AI** and **Generate** need AI configured and make paid API calls; without AI they are disabled with a tooltip giving the reason, and everything else works. AI work runs in the background, so the window stays responsive.
+**Substitute an ingredient** (F07), at the bottom of the Details section, does what `recipe substitute` does in the CLI (it runs the same code):
+- Select a recipe in the table, choose the **Ingredient** and the **Reason** (Allergy, Missing or Preference), and press **Suggest substitutes**. The AI's up to three options appear in a table with the amount and ratio, a short note, "in pantry" when you already have enough, and the nutrition marked "(AI estimates)". Nothing changes yet.
+- Click an option and press **Apply selected**: the ingredient is replaced as **one undoable step** (one **Undo** restores the recipe), and the status bar shows the per-serving calorie change and any warnings. **Discard** drops the suggestion; choosing another recipe drops it too.
+- The AI only suggests. Every option is checked against your diet and allergens **before it is shown** and **again before it is applied**; if your profile changed in between, Apply refuses. If the recipe changed in between (for example you scaled it), Apply refuses and the suggestion is cleared; press Suggest again.
+- Recipe **steps are not rewritten** (a warning names steps that still mention the old ingredient). Changes to the bundled sample recipes last for the current session only.
+- This is an inline section with an ingredient choice, not the right-click "Suggest Substitute..." dialog described in Stage 1. Limitations: one ingredient per request; the replacement's nutrition is an AI estimate; the suggestion is kept only while the window is open.
+
+**Explain with AI**, **Generate** and **Suggest substitutes** need AI configured and make paid API calls; without AI they are disabled with a tooltip giving the reason, and everything else works. AI work runs in the background, so the window stays responsive.
 
 What can be undone (same as the CLI): saving, scaling and removing recipes (and pantry changes) go through **Undo**/**Redo**; ratings, favorites and profile edits are settings and are not undoable.
 

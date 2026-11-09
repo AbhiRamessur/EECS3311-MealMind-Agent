@@ -2,16 +2,13 @@ package com.mealmind.cli;
 
 import com.mealmind.agent.AgentEventType;
 import com.mealmind.app.ApplicationContext;
-import com.mealmind.model.Ingredient;
+import com.mealmind.substitution.SubstituteText;
 import com.mealmind.substitution.SubstitutionApplier;
-import com.mealmind.substitution.SubstitutionOption;
 import com.mealmind.substitution.SubstitutionProposal;
 import com.mealmind.substitution.SubstitutionReason;
 import com.mealmind.substitution.SubstitutionRequest;
 import com.mealmind.substitution.SubstitutionResult;
 import java.io.PrintStream;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -20,7 +17,8 @@ import java.util.Set;
 /**
  * {@code recipe substitute ...} (F07): asks the AI for up to three safe substitutes for one ingredient, then
  * applies or discards the suggestion. A suggestion changes nothing; {@code recipe substitute apply <n>}
- * re-checks the option's safety and replaces the ingredient through an undoable command.
+ * re-checks the option's safety and replaces the ingredient through an undoable command. The wording lives in
+ * {@link SubstituteText}, shared with the GUI; this class parses the arguments and prints.
  */
 final class SubstituteCommands {
 
@@ -68,33 +66,9 @@ final class SubstituteCommands {
         if (pending == null) {
             out.println(result.message());
         } else {
-            print(pending);
+            SubstituteText.proposalLines(pending).forEach(out::println);
         }
-        out.println("Agent: " + result.llmCalls() + " model calls, " + result.toolSteps() + " tool calls; tokens: "
-                + result.usage().promptTokens() + " prompt + " + result.usage().completionTokens() + " completion");
-    }
-
-    private void print(SubstitutionProposal proposal) {
-        Ingredient target = proposal.target();
-        out.println("Substitutes for " + target.getName() + " in " + proposal.recipe().getId() + " "
-                + proposal.recipe().getName() + " (reason: " + proposal.reason().getDisplayName().toLowerCase(Locale.ROOT) + "):");
-        List<SubstitutionOption> options = proposal.options();
-        for (int i = 0; i < options.size(); i++) {
-            SubstitutionOption option = options.get(i);
-            String note = option.note().isEmpty() ? "" : " - " + option.note();
-            out.println("  " + (i + 1) + ". " + CliFormat.number(target.getQuantity() * option.ratio(), target.getUnit())
-                    + " " + target.getUnit().getSymbol() + " " + option.name() + " (x" + ratio(option.ratio()) + ")"
-                    + note + (option.inPantry() ? " [in pantry]" : ""));
-            out.println(String.format(Locale.ROOT, "     about %.0f kcal, P %.1f g, C %.1f g, F %.1f g (AI estimates)",
-                    option.calories(), option.proteinG(), option.carbsG(), option.fatG()));
-        }
-        proposal.notes().forEach(note -> out.println("Note: " + note));
-        out.println("Use 'recipe substitute apply <n>' to apply it ('undo' reverts) or 'recipe substitute discard'.");
-    }
-
-    /** At most 2 decimals, without trailing zeros: 1.5, 2, 0.75. */
-    private static String ratio(double value) {
-        return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
+        out.println(SubstituteText.statsLine(result));
     }
 
     private void apply(List<String> args) {
@@ -102,7 +76,7 @@ final class SubstituteCommands {
             throw new UsageException(APPLY_USAGE);
         }
         if (pending == null) {
-            out.println("No pending substitution.");
+            out.println(SubstituteText.NO_PENDING);
             return;
         }
         int number = CliArgs.parseInt(args.get(0), APPLY_USAGE);
@@ -117,22 +91,15 @@ final class SubstituteCommands {
             throw e;
         }
         pending = null;
-        out.println("Substituted: " + result.message());
-        for (String warning : result.warnings()) {
-            out.println(warning.startsWith("Per serving:") ? warning : "Warning: " + warning);
-        }
-        if (ctx.isBundledRecipe(id)) {
-            out.println("Note: " + id + " is a bundled sample recipe; this change lasts for this session only.");
-        }
-        out.println("Use 'undo' to revert.");
+        SubstituteText.appliedLines(result, id, ctx.isBundledRecipe(id)).forEach(out::println);
     }
 
     private void discard() {
         if (pending == null) {
-            out.println("No pending substitution.");
+            out.println(SubstituteText.NO_PENDING);
             return;
         }
         pending = null;
-        out.println("Discarded the pending substitution.");
+        out.println(SubstituteText.DISCARDED);
     }
 }

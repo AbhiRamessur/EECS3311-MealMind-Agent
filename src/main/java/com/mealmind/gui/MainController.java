@@ -66,11 +66,11 @@ public final class MainController implements AutoCloseable {
 
         profileTab = new ProfileTab(ctx.profile(), this::showStatus);
         bindings.add(ObserverBinding.bind(ctx.profile(), ui, profileTab::onProfileChanged));
-        // One flag for every AI job started from the window (Pantry leftovers, Plan chat, Nutrition), so they never overlap.
+        // One flag for every AI job started from the window (Pantry leftovers, Recipes, Plan chat, Nutrition), so they never overlap.
         BusyFlag aiBusy = new BusyFlag();
         pantryTab = new PantryTab(ctx, background, ui, this::showStatus, aiBusy);
         bindings.add(ObserverBinding.bind(ctx.pantry(), ui, pantryTab::refresh));
-        recipesTab = new RecipesTab(ctx, background, ui, this::showStatus);
+        recipesTab = new RecipesTab(ctx, background, ui, this::showStatus, aiBusy);
         bindings.add(ObserverBinding.bind(ctx.recipeBook(), ui, recipesTab::refresh));
         bindings.add(ObserverBinding.bind(ctx.preferences(), ui, recipesTab::refresh));
         // Safety flags depend on the profile.
@@ -158,6 +158,7 @@ public final class MainController implements AutoCloseable {
         bindings.clear();
         planBindings.close();
         pantryTab.close();
+        recipesTab.close();
         background.close();
     }
 
