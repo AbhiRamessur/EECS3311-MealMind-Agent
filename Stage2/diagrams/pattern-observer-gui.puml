@@ -1,0 +1,42 @@
+@startuml pattern-observer-gui
+!pragma layout smetana
+title Observer pattern (GUI side) - bindings marshalled to the JavaFX thread
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+
+abstract class ObservableSubject <<Subject>>
+interface ModelObserver <<Observer>>
+class ObserverBinding {
+  +{static} bind(subject, ui, onChange) : ObserverBinding
+  +close()
+}
+interface UiThread {
+  +run(Runnable)
+}
+class FxUiThread {
+  +run(Runnable)
+}
+class ImmediateUiThread
+class PlanBindings {
+  +onPlanChange(Runnable)
+  +onShoppingChange(Runnable)
+  +repoint()
+  +close()
+}
+class MainController {
+  +close()
+}
+class "PantryTab, RecipesTab, PlanTab,\nShoppingTab, NutritionTab,\nUndoRedoToolBar" as Views
+
+ObserverBinding ..> ModelObserver : creates event -> ui.run(onChange)
+ObserverBinding --> ObservableSubject : addObserver / removeObserver
+ObserverBinding --> UiThread
+UiThread <|.. FxUiThread : Platform.runLater\noff the FX thread
+UiThread <|.. ImmediateUiThread : tests
+PlanBindings o-- "*" ObserverBinding : re-bound to ctx.plan()\nand ctx.generator()
+MainController o-- "*" ObserverBinding
+MainController o-- PlanBindings
+MainController --> Views
+Views ..> ObserverBinding : refresh actions
+@enduml

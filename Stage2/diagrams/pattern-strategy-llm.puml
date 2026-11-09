@@ -1,0 +1,36 @@
+@startuml pattern-strategy-llm
+!pragma layout smetana
+title Strategy pattern (use 1 of 2) - interchangeable AI providers (package com.mealmind.llm)
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+
+interface LLMClient <<Strategy>> {
+  +providerName() : String
+  +modelName() : String
+  +complete(LlmRequest) : LlmResponse
+}
+class OpenAiClient <<ConcreteStrategy>>
+class OllamaClient <<ConcreteStrategy>>
+class RetryingLlmClient <<Decorator - not claimed as a pattern>> {
+  -delegate : LLMClient
+}
+class LlmService <<Context>> {
+  +useClient(LLMClient)
+  +disable(String)
+  +isAvailable() : boolean
+  +complete(LlmRequest) : LlmResponse
+}
+class LlmClientFactory {
+  +{static} create(AppConfig) : LLMClient
+}
+class AgentLoop
+
+LLMClient <|.. OpenAiClient
+LLMClient <|.. OllamaClient
+LLMClient <|.. RetryingLlmClient
+RetryingLlmClient o-- LLMClient : wraps
+LlmService o-- "0..1" LLMClient : active strategy
+LlmClientFactory ..> LLMClient : builds
+AgentLoop --> LlmService : complete()
+@enduml

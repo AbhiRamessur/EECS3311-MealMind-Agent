@@ -6,13 +6,13 @@ MealMind Intelligent Meal Planning and Kitchen Management System for EECS 3311 (
 
 ## Stages
 - **Stage 1 (Design)** - [`stage1/Stage1_Design_Report.md`](Stage1/Stage1_Design_Report.md)
-- **Stage 2 (Implementation)** - [`Stage2/Stage2_Implementation_Report.md`](Stage2/Stage2_Implementation_Report.md); setup in [Stage 2: Setup and Configuration](#stage-2-setup-and-configuration)
+- **Stage 2 (Implementation)** - report [`Stage2/stage2-report.md`](Stage2/stage2-report.md) (also as [`.docx`](Stage2/stage2-report.docx) and [`.pdf`](Stage2/stage2-report.pdf)); UML diagrams (PlantUML sources and PNGs) in [`Stage2/diagrams/`](Stage2/diagrams/); demo recording script [`Stage2/demo-script.md`](Stage2/demo-script.md); running change log [`Stage2/Stage2_Implementation_Report.md`](Stage2/Stage2_Implementation_Report.md); setup in [Stage 2: Setup and Configuration](#stage-2-setup-and-configuration)
 - **Stage 3 (Testing)** -
 
 ## Stage 1 Deliverables
 * **Use Case Specifications & Diagrams:** Complete documentation of core user interactions and system boundaries (`UC01` – `UC12`).
 * **Class Diagram:** Static structural model outlining controllers, models, agents, tools, and repositories.
-* **System Sequence Diagrams:** Dynamic message-passing diagrams (`SD-01` – `SD-11`) mapping out core runtime workflows.
+* **System Sequence Diagrams:** Dynamic message-passing diagrams (`SD02`, `SD04`, `SD05`, `SD06`, `SD11`) mapping out core runtime workflows.
 * **Feature-to-Design Traceability Matrix:** Comprehensive mapping linking all system features (`F01` – `F12`) directly to implementing classes, key methods, sequence diagrams, and design patterns.
 
 ## Stage 2: Setup and Configuration
@@ -35,8 +35,13 @@ Windows (Command Prompt):
 copy .env.example .env
 ```
 
+Windows (PowerShell):
+```powershell
+Copy-Item .env.example .env
+```
+
 ### 2. Enter your API key
-Open `.env` and replace `YOUR_LOCAL_API_KEY_HERE` with your own OpenAI key on the `LLM_API_KEY` line. Real environment variables override the values in `.env`. If the provider is `openai` and the key is missing or still the placeholder, MealMind stops with a message saying what to fix.
+Open `.env` and replace `YOUR_LOCAL_API_KEY_HERE` with your own OpenAI key on the `LLM_API_KEY` line. Real environment variables override the values in `.env`. If the provider is `openai` and the key is missing or still the placeholder, MealMind starts with AI features disabled and prints one line saying what to fix; all deterministic features still work. Never commit `.env` or paste your key into any other file.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -54,6 +59,11 @@ LLM_PROVIDER=ollama
 The model defaults to `llama3`. `LLM_API_KEY` can be left as the placeholder or removed.
 
 ### 3. Build and run the tests
+Maven downloads every dependency (Jackson, JavaFX, JUnit and the Maven plugins) automatically on the first build, so no separate installation step is needed. To download them and compile without running the tests:
+```bash
+mvn -q compile
+```
+To run the full test suite:
 ```bash
 mvn test
 ```
@@ -76,6 +86,10 @@ mvn -q exec:java
 Your data is saved automatically in the `data/` directory (gitignored): `pantry.json`, `profile.json`, `user-recipes.json` (recipes you saved) and `ratings.json` (ratings and favorites). To keep data somewhere else, set `MEALMIND_DATA_DIR`:
 ```bash
 MEALMIND_DATA_DIR=/path/to/my-data mvn -q exec:java
+```
+PowerShell:
+```powershell
+$env:MEALMIND_DATA_DIR = "C:\Users\you\mealmind-data"; mvn -q exec:java
 ```
 The meal plan is kept in memory for the session only. The ten sample recipes (R101–R110) are always available and always reload at their original servings; they are demo data with approximate nutrition and prices.
 

@@ -1,0 +1,41 @@
+@startuml use-case
+!pragma layout smetana
+title MealMind use cases - Stage 2 status (implemented / partial / not implemented)
+skinparam shadowing false
+left to right direction
+
+actor "User\n(student, busy professional)" as User
+actor "AI model service\n(OpenAI or Ollama)" as AI
+
+rectangle "MealMind (CLI and JavaFX GUI)" {
+  usecase "UC01 Manage dietary profile\n[PARTIAL: forms only,\nno free-text parsing]" as UC01
+  usecase "UC02 Manage pantry inventory\n[IMPLEMENTED]" as UC02
+  usecase "UC03 Recommend recipes from pantry\n[IMPLEMENTED: AI re-ranking optional]" as UC03
+  usecase "UC04 Generate AI recipe\n[IMPLEMENTED]" as UC04
+  usecase "UC05 Generate weekly meal plan\n[PARTIAL: rule-based only, no AI]" as UC05
+  usecase "UC06 Modify plan via natural language\n[IMPLEMENTED]" as UC06
+  usecase "UC07 Suggest ingredient substitution\n[NOT IMPLEMENTED]" as UC07
+  usecase "UC08 Scale recipe servings\n[IMPLEMENTED]" as UC08
+  usecase "UC09 Analyze nutrition and commentary\n[IMPLEMENTED: AI commentary optional]" as UC09
+  usecase "UC10 Plan expiring leftovers\n[NOT IMPLEMENTED]" as UC10
+  usecase "UC11 Generate shopping list\n[IMPLEMENTED]" as UC11
+  usecase "UC12 Rate and favorite recipes\n[IMPLEMENTED]" as UC12
+}
+
+User --> UC01
+User --> UC02
+User --> UC03
+User --> UC04
+User --> UC05
+User --> UC06
+User --> UC08
+User --> UC09
+User --> UC11
+User --> UC12
+User ..> UC07
+User ..> UC10
+UC03 ..> AI : optional (--explain)
+UC04 --> AI
+UC06 --> AI
+UC09 ..> AI : optional (--explain)
+@enduml

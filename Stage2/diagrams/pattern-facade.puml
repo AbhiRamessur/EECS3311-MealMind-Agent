@@ -1,0 +1,74 @@
+@startuml pattern-facade
+!pragma layout smetana
+title Facade pattern - AgentFacade, its subsystem and its clients
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+left to right direction
+
+class AgentFacade <<Facade>> {
+  +generateRecipe(prompt, activity)
+  +savePendingRecipe(history)
+  +discardPendingRecipe()
+  +rerankRecommendations(result, activity)
+  +explainNutrition(summary, activity)
+  +editPlan(instruction, plan, history, activity)
+  +isAiAvailable()
+}
+package "Subsystem (agent, llm, tools, validation)" {
+  class AgentLoop
+  class RecipeGenerator
+  class RecommendationRanker
+  class NutritionCommentator
+  class PlanEditor
+  class PlanEditChecker
+  class PromptBuilder
+  class PlanEditPrompt
+  class RecipeDraftParser
+  class LlmService
+  class ToolManager
+  class AgentMemory
+  class ConstraintValidator
+}
+package "Clients" {
+  class AgentCommands
+  class AnalysisCommands
+  class PlanEditCommands
+  class PreferenceCommands
+  class GeneratePane
+  class RecommendPane
+  class PlanChatBar
+  class NutritionTab
+}
+package "Reached directly (documented exceptions)" {
+  class LlmCommands
+  class ToolCommands
+  class "AgentCommands\n(memory commands)" as MemCmd
+}
+
+AgentFacade --> RecipeGenerator
+AgentFacade --> RecommendationRanker
+AgentFacade --> NutritionCommentator
+AgentFacade --> PlanEditor
+AgentFacade ..> AgentLoop : editPlan
+AgentFacade ..> PlanEditChecker
+AgentFacade ..> PlanEditPrompt
+RecipeGenerator --> AgentLoop
+RecipeGenerator ..> PromptBuilder
+RecipeGenerator ..> RecipeDraftParser
+AgentLoop --> LlmService
+AgentLoop --> ToolManager
+AgentFacade --> ConstraintValidator
+AgentFacade --> AgentMemory
+AgentCommands --> AgentFacade
+AnalysisCommands --> AgentFacade
+PlanEditCommands --> AgentFacade
+PreferenceCommands --> AgentFacade
+GeneratePane --> AgentFacade
+RecommendPane --> AgentFacade
+PlanChatBar --> AgentFacade
+NutritionTab --> AgentFacade
+LlmCommands --> LlmService : llm status / ping
+ToolCommands --> ToolManager : tools list/schema/call
+MemCmd --> AgentMemory : memory show/remember
+@enduml

@@ -1,0 +1,29 @@
+@startuml seq-gui-observer-refresh
+title GUI observer refresh - a pantry add updates the shopping list and the tabs (Observer, Command)
+skinparam shadowing false
+autonumber
+
+actor User
+participant PantryTab
+participant CommandHistory
+participant AddPantryItemCommand
+participant Pantry
+participant ShoppingListGenerator
+participant "ObserverBinding\n(ShoppingTab)" as Binding
+participant FxUiThread
+participant ShoppingTab
+participant UndoRedoToolBar
+
+User -> PantryTab : fill form, click Add
+PantryTab -> PantryTab : PantryForm.parse (field errors)
+PantryTab -> CommandHistory : pushAndExecute(new AddPantryItemCommand)
+CommandHistory -> AddPantryItemCommand : execute()
+AddPantryItemCommand -> Pantry : addItem(item)
+Pantry -> ShoppingListGenerator : onStateChanged (Observer)
+ShoppingListGenerator -> ShoppingListGenerator : generate()
+ShoppingListGenerator -> Binding : onStateChanged
+Binding -> FxUiThread : run(refresh)
+FxUiThread -> ShoppingTab : refresh() on the FX thread
+CommandHistory -> UndoRedoToolBar : notify -> refresh labels\n(through its own ObserverBinding)
+note over Pantry, ShoppingListGenerator : the same chain runs for CLI changes;\nthe CLI's CLIConsoleView prints "[update] ..."
+@enduml

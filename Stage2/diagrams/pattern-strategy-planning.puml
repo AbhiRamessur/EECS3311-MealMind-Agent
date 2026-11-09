@@ -1,0 +1,39 @@
+@startuml pattern-strategy-planning
+!pragma layout smetana
+title Strategy pattern (use 2 of 2) - meal-planning strategies (package com.mealmind.planning)
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+
+interface PlanningStrategy <<Strategy>> {
+  +id() : String
+  +displayName() : String
+  +promptGuidance() : String
+  +score(Recipe, ScoringContext) : double
+}
+class PantryFirstStrategy <<ConcreteStrategy>>
+class BudgetConsciousStrategy <<ConcreteStrategy>>
+class HighProteinStrategy <<ConcreteStrategy>>
+class PlanningStrategies {
+  +{static} all()
+  +{static} byId(String)
+}
+class RulePlanner <<Context>> {
+  +generate(PlanRequest) : PlanResult
+}
+class PlanRequest <<record>> {
+  days, strategy, slots, budget
+}
+class PantryCoverage {
+  +{static} of(Recipe, Pantry)
+}
+
+PlanningStrategy <|.. PantryFirstStrategy
+PlanningStrategy <|.. BudgetConsciousStrategy
+PlanningStrategy <|.. HighProteinStrategy
+PlanningStrategies ..> PlanningStrategy : registry
+PlanRequest --> PlanningStrategy
+RulePlanner ..> PlanRequest
+RulePlanner ..> PlanningStrategy : score()
+PantryFirstStrategy ..> PantryCoverage
+@enduml

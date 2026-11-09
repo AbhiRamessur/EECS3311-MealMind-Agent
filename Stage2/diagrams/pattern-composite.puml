@@ -1,0 +1,53 @@
+@startuml pattern-composite
+!pragma layout smetana
+title Composite pattern - the meal model (package com.mealmind.model)
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+interface MealComponent <<Component>> {
+  +getName() : String
+  +getCalories() : double
+  +getProteinG() : double
+  +getCarbsG() : double
+  +getFatG() : double
+  +getCost() : double
+  +getIngredients() : List<Ingredient>
+  +getRecipes() : List<Recipe>
+}
+class Ingredient <<Leaf>> {
+  -name, quantity, unit
+  -calories, proteinG, carbsG, fatG, cost
+}
+class Recipe <<Composite>> {
+  -id, name, servings, prepMinutes
+  +caloriesPerServing() : double
+}
+class Meal <<Composite>> {
+  -type : MealType
+  -label : String
+}
+class DayPlan <<Composite>> {
+  -dayNumber : int
+  +setMeal(MealType, Meal)
+  +getFilledSlots()
+}
+class MealPlan <<Composite>> {
+  +getDays() : List<DayPlan>
+  +setMeal(int, MealType, Meal)
+  +getRequiredIngredients()
+}
+class NutritionAggregator <<Client>> {
+  +aggregate(MealPlan, UserProfile)
+}
+
+MealComponent <|.. Ingredient
+MealComponent <|.. Recipe
+MealComponent <|.. Meal
+MealComponent <|.. DayPlan
+MealComponent <|.. MealPlan
+Recipe "1" *-- "1..*" Ingredient
+Meal "1" o-- "1..*" MealComponent : recipes or\nloose ingredients
+DayPlan "1" *-- "0..4" Meal : one per MealType
+MealPlan "1" *-- "1..7" DayPlan
+NutritionAggregator ..> MealComponent : reads totals\n(Macros.of)
+@enduml
