@@ -3,6 +3,7 @@ package com.mealmind.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.mealmind.model.MealPlan;
 import com.mealmind.model.MealType;
+import com.mealmind.model.Names;
 import com.mealmind.model.Recipe;
 import com.mealmind.model.RecipeBook;
 import com.mealmind.validation.ConstraintValidator;
@@ -11,17 +12,22 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
  * Checks the model's {@code "edit"} answer (F06) deterministically and turns it into a
  * {@link PlanEditProposal}. Structural problems are sent back as one-sentence repair prompts; a recipe
- * that breaks the profile's safety rules is reported as {@link Check.Unsafe}. Nothing is changed here.
+ * that breaks the profile's safety rules is reported as {@link Check.Unsafe}. An explanation that names a
+ * different recipe from the book than the one chosen is dropped, because it would contradict the action that
+ * actually runs. Nothing is changed here.
  */
 public final class PlanEditChecker implements AnswerChecker<PlanEditProposal> {
 
     /** Largest servings value accepted in an edit. */
     public static final int MAX_SERVINGS = 12;
+    /** Recipe names shorter than this (after normalizing) are not matched in explanations. */
+    static final int MIN_NAME_LENGTH = 4;
 
     private final RecipeBook recipes;
     private final MealPlan plan;
@@ -82,7 +88,35 @@ public final class PlanEditChecker implements AnswerChecker<PlanEditProposal> {
                     + violations.stream().map(Violation::message).collect(Collectors.joining("; "))
                     + ". Choose a different recipe.", proposal);
         }
+        // The explanation is untrusted text: if it names a different recipe from the book, it contradicts the
+        // action that will actually run, so it is dropped (the chosen recipe is the source of truth).
+        if (namesOtherRecipe(proposal.explanation(), recipe)) {
+            proposal = new PlanEditProposal(EditAction.REPLACE, proposal.day(), proposal.slot(), recipe, servings, "", null);
+        }
         return new Check.Accepted<>(proposal);
+    }
+
+    /**
+     * Returns whether {@code explanation} mentions, as a whole phrase, the name of a recipe in the book other than
+     * {@code chosen}. Names are compared after {@link Names#normalize}; names shorter than
+     * {@value #MIN_NAME_LENGTH} characters are ignored.
+     */
+    private boolean namesOtherRecipe(String explanation, Recipe chosen) {
+        if (explanation == null || explanation.isBlank()) {
+            return false;
+        }
+        String text = Names.normalize(explanation);
+        String chosenName = Names.normalize(chosen.getName());
+        for (Recipe other : recipes.getAll()) {
+            String name = Names.normalize(other.getName());
+            if (other.getId().equals(chosen.getId()) || name.equals(chosenName) || name.length() < MIN_NAME_LENGTH) {
+                continue;
+            }
+            if (Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(name) + "(?![\\p{L}\\p{N}])").matcher(text).find()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Check<PlanEditProposal> checkClear(JsonNode answer) {

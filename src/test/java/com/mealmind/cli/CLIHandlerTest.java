@@ -1078,7 +1078,7 @@ class CLIHandlerTest {
 
     // ---- Commit 14: nutrition analysis and recommendations ----
 
-    private static final String COMMENTARY = "{\"commentary\": \"You reach about half of your calorie target; add a hearty lunch.\"}";
+    private static final String COMMENTARY = "{\"commentary\": \"You eat about 331 kcal on day 1; add a hearty lunch.\"}";
 
     @Test
     void planNutritionOnAnEmptyPlan() {
@@ -1129,7 +1129,7 @@ class CLIHandlerTest {
 
         assertContains(output, "Nutrition summary");
         assertContains(output, "[agent] Asking the model (call 1)");
-        assertContains(output, "AI commentary: You reach about half of your calorie target; add a hearty lunch.");
+        assertContains(output, "AI commentary: You eat about 331 kcal on day 1; add a hearty lunch.");
         assertTrue(output.indexOf("Nutrition summary") < output.indexOf("AI commentary:"));
         assertEquals(1, client.requests.size());
     }
@@ -1351,5 +1351,20 @@ class CLIHandlerTest {
 
         assertContains(help, "plan edit \"<what to change>\"");
         assertContains(help, "plan undo | plan redo");
+    }
+
+    // ---- Commit 19: AI free text must not contradict verified facts ----
+
+    @Test
+    void planEditDropsAnExplanationThatNamesADifferentRecipe() {
+        // Live case found with Ollama llama3: the edit applied R103, but the explanation named another recipe.
+        useScriptedAi().reply(editReply("{\"action\": \"replace\", \"day\": 2, \"slot\": \"DINNER\", \"recipeId\": \"R103\", "
+                + "\"explanation\": \"Swapped in Black Bean Tacos, a quicker dinner\"}"));
+
+        String output = run("plan edit make day 2 dinner quicker");
+
+        assertTrue(output.lines().anyMatch(line -> line.equals("Edit applied: Replaced Day 2 DINNER with Red Lentil Soup")), output);
+        assertFalse(output.contains("Black Bean Tacos"), output);
+        assertEquals("R103", dinnerOnDay(2));
     }
 }

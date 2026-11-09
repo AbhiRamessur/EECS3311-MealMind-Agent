@@ -168,7 +168,7 @@ class GuiPlanSmokeTest {
 
     @Test
     void explainWithAiShowsTheCommentaryAndKeepsTheNumbers() throws Exception {
-        ai.reply("{\"commentary\": \"One dinner is planned; add lunches to get closer to your targets.\"}");
+        ai.reply("{\"commentary\": \"One dinner is planned; add lunches for more balanced days.\"}");
         NutritionTab nutrition = controller.nutritionTab();
         int lines = onFx(() -> nutrition.figures().getChildren().size());
 

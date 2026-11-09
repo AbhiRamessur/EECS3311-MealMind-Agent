@@ -10,7 +10,7 @@
 | **Student ID** | 219433564 |
 | **Repository** | https://github.com/AbhiRamessur/EECS3311-MealMind-Agent |
 | **Design baseline** | `Stage1/Stage1_Design_Report.md` |
-| **Running change log** | `Stage2/Stage2_Implementation_Report.md` (CR-01 to CR-182, reproduced in Appendix A) |
+| **Running change log** | `Stage2/Stage2_Implementation_Report.md` (CR-01 to CR-186, reproduced in Appendix A) |
 | **Report date** | [FILL: confirm submission date] |
 
 ### Contents
@@ -23,7 +23,7 @@
 6. Development and verification summary
 7. Demonstration index
 
-Appendix A: complete change log (CR-01 to CR-182)
+Appendix A: complete change log (CR-01 to CR-186)
 
 All statements below were checked against the code at commit `7aeb1ee` (the last implementation commit), the README, the CLI help text, `git log` and a fresh `mvn clean test` run. Items only the author can supply are marked `[FILL: ...]`.
 
@@ -90,7 +90,8 @@ F01 and F05 are counted because each delivers a complete, non-trivial user-facin
 - "Nutritional data unavailable" is a heuristic: all-zero ingredients that are not on a short allowlist (water, salt, pepper, spices, ...).
 - AI plan edits handle **one change per request**; Day 1 is assumed to be Monday because plans have no dates.
 - The GUI is English-only, has no drag and drop and no screenshots yet; the GUI tests are skipped (not failed) on machines without a display.
-- **Live-model testing:** all automated tests use scripted model replies and never contact a provider. [FILL: whether and how the AI features were tried against a real OpenAI or Ollama model, which model, and what was observed.]
+- **AI free text is only partly verifiable.** Plan-edit explanations that name a different recipe are dropped, and commentary that mentions targets when none are set is repaired (CR-183, CR-184). The AI can still say things code cannot check (for example "quicker" or "lighter"); the applied recipe and the computed figures are the source of truth (CR-186).
+- **Live-model testing:** all automated tests use scripted model replies and never contact a provider. Manual testing with Ollama llama3 found two defects, both fixed in Commit 19 (Section 6.3). [FILL: any further live-model observations, for example with OpenAI.]
 
 ---
 
@@ -336,6 +337,7 @@ Each row consolidates several change-log entries (CR numbers in the last column)
 |---|---|---|---|---|---|
 | Deterministic safety gate | `ConstraintValidator` checks AI output | SAFETY vs ADVISORY severities; keyword heuristic documented; every AI recipe, ranking and edit checked by code; double check for edits; Save disabled for unsafe candidates plus the facade re-check | Never trust the model | Unsafe output cannot be saved or executed | CR-70 to CR-72, CR-74, CR-92, CR-101, CR-123, CR-133, CR-142, CR-165 |
 | Prompt-injection hygiene | Not covered | Names sanitized and labelled as data; replies validated and cleaned to ASCII | Names come from users and AI | Injected instructions are treated as data | CR-108, CR-134 |
+| AI text checked against verified facts | AI explanation and commentary shown as given | Edit explanations naming another book recipe are dropped; with no targets set, the prompt forbids target claims and target/goal words are repaired | Live testing with Ollama llama3 showed contradictions | Messages never contradict the applied recipe or invent targets | CR-183 to CR-186 |
 
 ### 4.7 GUI
 
@@ -460,7 +462,7 @@ Every period has at least five meaningful code commits. This report and its diag
 
 ### 6.2 Checks performed
 
-**Automated tests.** A fresh `mvn clean test` on 2026-11-08 ran **836 tests in 117 test classes: 836 passed, 0 failed, 0 skipped** (about 17 s wall time on the development machine, Windows 11, JDK 21). By area:
+**Automated tests.** A fresh `mvn clean test` on 2026-11-09 ran **849 tests in 117 test classes: 849 passed, 0 failed, 0 skipped** (about 12 s wall time on the development machine, Windows 11, JDK 21). By area:
 
 | Area (package) | Tests | Test classes |
 |---|---|---|
@@ -472,10 +474,10 @@ Every period has at least five meaningful code commits. This report and its diag
 | persistence, preferences | 39 | PantryRepository, PreferencesRepository, ProfileRepository, RecipeRepository, RecipePreferences |
 | config, llm | 73 | AppConfig, DotEnvParser, ChatMessage, LlmClientFactory, LlmErrorKind, LlmRequest, LlmService, OllamaClient, OpenAiClient, Redactor, RetryingLlmClient, TokenUsage, UsageTracker |
 | tools | 56 | ConstraintCheckTool, PantryTool, ParamType, PlanTool, RecipeSearchTool, ShoppingListTool, ToolManager, ToolParam, ToolSpec |
-| agent | 135 | AgentEvent, AgentFacade, AgentLimits, AgentLoop, AgentMemory, NutritionCommentator, PlanEditChecker, PlanEditPrompt, PlanEditor, PreferenceNotes, PromptBuilder, RecipeDraftParser, RecipeGenerator, RecommendationRanker |
+| agent | 147 | AgentEvent, AgentFacade, AgentLimits, AgentLoop, AgentMemory, NutritionCommentator, PlanEditChecker, PlanEditPrompt, PlanEditor, PreferenceNotes, PromptBuilder, RecipeDraftParser, RecipeGenerator, RecommendationRanker |
 | planning, nutrition, recommend | 70 | PantryCoverage, PlanRequest, PlanningStrategies, RulePlanner, NutritionAggregator, NutritionData, NutritionFormatter, RecipeRecommender, RecommendationFormatter, RecommendationRequest |
 | app, Main | 42 | ApplicationContext, Startup, Main |
-| cli | 105 | CLIConsoleView, CLIHandler, CommandLineTokenizer |
+| cli | 106 | CLIConsoleView, CLIHandler, CommandLineTokenizer |
 | gui.logic (no display needed) | 78 | 22 presenter test classes (forms, rows, models, ObserverBinding, BackgroundRunner, TextExport, PlanBindings, ...) |
 | gui (needs JavaFX; skipped without a display) | 16 | GuiSmokeTest, GuiRecipesSmokeTest, GuiPlanSmokeTest |
 
@@ -487,7 +489,7 @@ All AI tests use scripted model replies (fake `LLMClient` implementations or a l
 
 **Key safety.** The pre-commit hook (`scripts/hooks/pre-commit`) blocks staged `.env`, `.env.*` (except `.env.example`) and `config.local.json` files and key-like text; it ran on every commit. It has no automated test of its own. Unit tests cover the key handling in code (`AppConfigTest`, `RedactorTest`, `OpenAiClientTest`, `PromptBuilderTest` check that keys never appear in messages, prompts or `toString`). A scan of the full history (`git log --all -p`) for key-like strings, run on 2026-11-08, found **none** (result: no). `git ls-files` contains no `.env` or `config.local.json`.
 
-**Not verified.** Behaviour against a live provider [FILL: whether and how the AI features were run against a real model]; accessibility beyond labels and keyboard shortcuts; other operating systems (all runs were on Windows 11 with JDK 21); performance with large recipe books.
+**Not verified.** Behaviour against a live provider beyond the manual Ollama llama3 checks that found CR-183 and CR-184 [FILL: any further live-model runs]; accessibility beyond labels and keyboard shortcuts; other operating systems (all runs were on Windows 11 with JDK 21); performance with large recipe books.
 
 ### 6.3 Important defects found and corrected
 
@@ -500,10 +502,12 @@ All AI tests use scripted model replies (fake `LLMClient` implementations or a l
 | Recommendation reason "Covers N% of your pantry" described the wrong ratio | Reported as an assumption, reviewed | "Pantry covers N% of the recipe" | CR-148 |
 | PowerShell split the `exec:java` launch argument | Running on Windows | PowerShell-safe form documented, `javafx:run` recommended | CR-170 |
 | Disabled AI buttons showed their reason only in invisible tooltips | Reported limitation | Visible "AI unavailable" labels, asserted by the self-test | CR-177 |
+| Plan-edit message named a different recipe than the one applied (R103) | Live testing with Ollama llama3 | Explanations naming another book recipe are dropped; CLI and facade tests reproduce the case | CR-183 |
+| Nutrition commentary said targets were met or missed when none were set | Live testing with Ollama llama3 | Prompt states that no targets are set (or lists exactly the set ones); target/goal words repaired when none are set | CR-184 |
 
 ### 6.4 Remaining limitations
 
-See Section 1.5. In short: F07 and F10 not implemented; F05 without AI planning and F01 without free-text parsing; AI-estimated nutrition for AI recipes; keyword-based safety; plan, shopping list and check-offs not saved; profile, rating and favourite edits not undoable; one AI plan edit per request with Day 1 = Monday; English-only GUI without drag and drop or screenshots; live-model behaviour [FILL].
+See Section 1.5. In short: F07 and F10 not implemented; F05 without AI planning and F01 without free-text parsing; AI-estimated nutrition for AI recipes; keyword-based safety; plan, shopping list and check-offs not saved; profile, rating and favourite edits not undoable; one AI plan edit per request with Day 1 = Monday; AI free text verified only where code knows the facts; English-only GUI without drag and drop or screenshots; live-model behaviour [FILL].
 
 ### 6.5 Test hooks in production classes
 
@@ -866,3 +870,15 @@ This section is the consolidated record of every feature, architecture, class an
 | **CR-181** | Not implemented | F07 (ingredient substitution, Stage 1's right-click substitute dialog) and F10 (expiring-leftovers planning). | Neither exists, and there is no partial code for them. | Out of scope for the time available. | Listed as deferred. |
 | **CR-182** | Limitations and deferred items | — | Limitations: no drag and drop (the slot editor assigns meals); the plan and the check-off marks are not saved between sessions; no screenshots; English-only GUI; GUI smoke tests are skipped (not failed) without a display; plan replacement by code other than the GUI is not noticed (CR-174). Deferred: **AI plan generation** (F05), **F07**, **F10**, **screenshots**. | — | — |
 
+#### Commit 19 — Reject AI text that contradicts verified facts
+
+**Pattern changes in this commit:** none. The **Strategy**-based `AnswerChecker` verdicts (`Check.Accepted`, `Check.Repair`, `Check.Unsafe`) are reused; the **Facade** and the **Command**-based plan editing are unchanged.
+
+**Principle.** Free-text AI output (an edit explanation, a nutrition commentary) is only accepted when it does not contradict facts the code can verify. The applied recipe and the computed figures are the source of truth; the AI's words are decoration around them.
+
+| ID | Type | Original design | Implemented change | Reason | Impact |
+|---|---|---|---|---|---|
+| **CR-183** | Defect fix (found by live testing) | Commit 15: `PlanEditChecker` validated the structure and safety of a REPLACE edit and kept the model's explanation as given (cleaned, at most 140 characters). | **Defect found by live testing with Ollama llama3:** the model chose R103 (Red Lentil Soup), the edit applied R103 correctly, but the explanation named a *different* recipe from the book, so the message contradicted the plan. **Fix:** after the structural and safety checks, `PlanEditChecker` drops the explanation (empty string) when it names any `RecipeBook` recipe other than the chosen one. Matching is whole-phrase after `Names.normalize` (case and whitespace insensitive, letters or digits must not touch the name on either side); names shorter than 4 characters (`MIN_NAME_LENGTH`) are ignored to avoid false hits; naming the chosen recipe is fine. Only REPLACE explanations are checked (CLEAR names no new recipe). | The message the user reads must agree with what was applied. | The edit itself is unchanged; the message falls back to the code-generated "Replaced Day N SLOT with <recipe>". 5 new `PlanEditCheckerTest` cases, 1 `AgentFacadeTest` case and 1 `CLIHandlerTest` case reproducing the live R103 reply. |
+| **CR-184** | Defect fix (found by live testing) | Commit 14: the `NutritionCommentator` system prompt always said "Say which daily targets are met or missed", and its checker only checked length, braces and format. | **Defect found by live testing with Ollama llama3:** with **no** nutrition targets set, the commentary still said targets were met or missed (it invented a target). **Fix, prompt:** with no calorie, protein, carbs or fat target, the prompt says exactly: "The user has not set any nutrition targets. Do not say that any target or goal is met or missed; describe the figures only and, if useful, suggest setting targets." With some targets, it lists exactly the set ones (for example "calories 2000 kcal, protein 90 g") and says not to mention targets that are not listed. **Fix, checker:** with no targets, the whole words target/targets/goal/goals (case-insensitive) are rejected with `Check.Repair("No targets are set; do not mention targets or goals. Describe the figures only.")`; "targeted" or "goalie" are not rejected. Exhausted repairs still end in `AgentException` ("AI explanation unavailable" in both front ends). | Commentary must not claim progress against targets that do not exist. | 6 new `NutritionCommentatorTest` cases (prompt with no targets and with some, repair vs accept, whole-word matching, exhausted repairs). |
+| **CR-185** | Test fixtures adjusted (no test weakened or deleted) | Earlier scripted commentaries mentioned a "target" on profiles with no targets, which the new rule correctly rejects. | Fixture texts only, same assertions in meaning: `NutritionCommentatorTest` GOOD reply and `lineBreaksAreCollapsed` reply and expected value ("You eat about 800 kcal a day..."); `AgentFacadeTest` commentary ("Calories are about 800 kcal a day; add a snack.", 4 places) and one assertion changed from `contains("40%")` to `contains("800 kcal")`; `CLIHandlerTest` commentary constant and its assertion ("You eat about 331 kcal on day 1; add a hearty lunch."); `GuiPlanSmokeTest` commentary (its `startsWith` assertion is unchanged). | The old fixtures described exactly the defect being fixed. | 836 -> 849 tests, all passing. |
+| **CR-186** | Remaining limitation | — | The AI can still say things the code cannot verify (for example that a recipe is "quicker" or "lighter", or general advice). Such text is accepted as long as it names no other recipe and, without targets, mentions no target or goal. The applied recipe and the computed figures shown beside the text remain the source of truth. | Code can only check facts it knows. | Documented in Section 1.5 of `stage2-report.md`. |

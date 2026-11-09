@@ -282,10 +282,10 @@ class AgentFacadeTest {
         client.reply(recipe("Bowl", "Rice", "Beans"));
         facade.generateRecipe("bowl", null);
         events.clear();
-        client.reply("{\"commentary\": \"Calories are about 40% of target; add a snack.\"}",
+        client.reply("{\"commentary\": \"Calories are about 800 kcal a day; add a snack.\"}",
                 "{\"ranking\": [{\"id\": \"R2\", \"reason\": \"Better\"}]}");
 
-        assertEquals("Calories are about 40% of target; add a snack.", facade.explainNutrition(oneDaySummary(), null));
+        assertEquals("Calories are about 800 kcal a day; add a snack.", facade.explainNutrition(oneDaySummary(), null));
         assertEquals("R2", facade.rerankRecommendations(twoRecommendations(), null).items().get(0).recipe().getId());
 
         assertEquals("Bowl", facade.pendingRecipe().orElseThrow().recipe().getName());
@@ -296,7 +296,7 @@ class AgentFacadeTest {
     void analysisMethodsShareTheBusyGuard() throws Exception {
         CountDownLatch release = new CountDownLatch(1);
         client.blockUntil(release).reply(recipe("Slow Bowl", "Rice", "Beans"),
-                "{\"commentary\": \"Calories are about 40% of target; add a snack.\"}");
+                "{\"commentary\": \"Calories are about 800 kcal a day; add a snack.\"}");
         Thread worker = new Thread(() -> facade.generateRecipe("slow", null));
         worker.start();
         assertTrue(client.entered.await(5, TimeUnit.SECONDS));
@@ -314,9 +314,9 @@ class AgentFacadeTest {
     void oldConstructorStillBuildsTheAnalysisSubsystem() {
         AgentFacade old = new AgentFacade(llm, new ToolManager(), new AgentMemory(), new ConstraintValidator(profile), profile,
                 new RecipeBook(), AgentLimits.defaults());
-        client.reply("{\"commentary\": \"Calories are about 40% of target; add a snack.\"}");
+        client.reply("{\"commentary\": \"Calories are about 800 kcal a day; add a snack.\"}");
 
-        assertTrue(old.explainNutrition(oneDaySummary(), null).contains("40%"));
+        assertTrue(old.explainNutrition(oneDaySummary(), null).contains("800 kcal"));
     }
 
     // ---- Commit 15: natural-language plan editing (F06) ----
@@ -519,5 +519,19 @@ class AgentFacadeTest {
 
         assertEquals(EditOutcome.CLARIFICATION, result.outcome());
         assertEquals("What would you like to add?", result.message());
+    }
+
+    // ---- Commit 19: the edit message never names a recipe that was not applied ----
+
+    @Test
+    void editMessageNeverNamesARecipeThatWasNotApplied() {
+        AgentFacade edits = editFacade();
+        client.reply(PlanEditReplies.replace(1, "DINNER", "E1", "Oat Bowl is the quicker choice"));
+
+        PlanEditResult result = edits.editPlan("quicker monday dinner", editPlan, editHistory, null);
+
+        assertEquals("Replaced Day 1 DINNER with Lentil Soup", result.message());
+        assertFalse(result.message().contains("Oat Bowl"));
+        assertEquals("E1", editPlan.getMeal(1, MealType.DINNER).orElseThrow().getRecipes().get(0).getId());
     }
 }

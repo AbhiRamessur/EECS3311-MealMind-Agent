@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mealmind.model.MealPlan;
 import com.mealmind.model.MealType;
+import com.mealmind.model.RecipeBook;
 import com.mealmind.profile.DietType;
 import com.mealmind.profile.UserProfile;
 import com.mealmind.validation.ConstraintValidator;
@@ -130,5 +131,43 @@ class PlanEditCheckerTest {
     void nonObjectAnswer() {
         assertEquals("\"edit\" must be a JSON object with an \"action\" field.", repairFeedback(check("\"replace it\"")));
         assertEquals("\"edit\" must be a JSON object with an \"action\" field.", repairFeedback(checker.check(null)));
+    }
+
+    // ---- Commit 19: explanations must not contradict the chosen recipe ----
+
+    private String explanationFor(String recipeId, String explanation) {
+        return accepted(check("{\"action\": \"replace\", \"day\": 1, \"slot\": \"DINNER\", \"recipeId\": \"" + recipeId
+                + "\", \"explanation\": \"" + explanation + "\"}")).explanation();
+    }
+
+    @Test
+    void explanationNamingAnotherRecipeIsDropped() {
+        assertEquals("", explanationFor("E3", "Swapped in Lentil Soup because it is quicker"));
+    }
+
+    @Test
+    void explanationNamingTheChosenRecipeIsKept() {
+        assertEquals("Oat Bowl is ready in 5 minutes", explanationFor("E3", "Oat Bowl is ready in 5 minutes"));
+    }
+
+    @Test
+    void explanationWithoutRecipeNamesIsUnchanged() {
+        assertEquals("Ready in 5 minutes", explanationFor("E3", "Ready in 5 minutes"));
+        assertEquals("Lentil Soups are heavier, this is lighter",
+                explanationFor("E3", "Lentil Soups are heavier, this is lighter"));
+    }
+
+    @Test
+    void recipeNameMatchingIgnoresCaseAndWhitespace() {
+        assertEquals("", explanationFor("E3", "Better than   LENTIL    soup tonight"));
+    }
+
+    @Test
+    void namesShorterThanFourCharactersAreIgnored() throws Exception {
+        RecipeBook book = PlanEditReplies.book();
+        book.put(PlanEditReplies.recipe("E4", "Pie", "Apples", 300, 1.00, 30));
+        checker = new PlanEditChecker(book, plan, new ConstraintValidator(profile));
+
+        assertEquals("Quicker than pie", explanationFor("E3", "Quicker than pie"));
     }
 }

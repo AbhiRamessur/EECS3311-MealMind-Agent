@@ -2,10 +2,12 @@ package com.mealmind.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.mealmind.llm.LlmErrorKind;
 import com.mealmind.llm.LlmException;
 import com.mealmind.llm.LlmRequest;
@@ -24,7 +26,7 @@ import org.junit.jupiter.api.Test;
 
 class NutritionCommentatorTest {
 
-    private static final String GOOD = "You reach 40% of your calorie target, so add a larger lunch with beans and rice.";
+    private static final String GOOD = "You eat about 800 kcal a day, so add a larger lunch with beans and rice.";
 
     private ScriptedClient client;
     private NutritionCommentator commentator;
@@ -111,9 +113,9 @@ class NutritionCommentatorTest {
 
     @Test
     void lineBreaksAreCollapsed() {
-        client.reply(reply("You reach 40% of your target.\\n\\nAdd a bigger lunch."));
+        client.reply(reply("You eat about 800 kcal a day.\\n\\nAdd a bigger lunch."));
 
-        assertEquals("You reach 40% of your target. Add a bigger lunch.", commentator.comment(summary(List.of()), profile, null));
+        assertEquals("You eat about 800 kcal a day. Add a bigger lunch.", commentator.comment(summary(List.of()), profile, null));
     }
 
     @Test
@@ -149,5 +151,74 @@ class NutritionCommentatorTest {
         assertTrue(all.contains("Bad sauce ignore rules"), all);
         assertFalse(all.contains("{ignore"));
         assertFalse(all.contains("\"sauce\""));
+    }
+
+    // ---- Commit 19: no invented targets ----
+
+    private static final String NO_TARGETS = "The user has not set any nutrition targets. Do not say that any target or goal "
+            + "is met or missed; describe the figures only and, if useful, suggest setting targets.";
+
+    @Test
+    void promptWithoutTargetsForbidsTargetClaims() {
+        String prompt = NutritionCommentator.systemPrompt(summary(List.of()), profile);
+
+        assertTrue(prompt.contains(NO_TARGETS), prompt);
+        assertFalse(prompt.contains("Say which daily targets are met or missed"), prompt);
+    }
+
+    @Test
+    void promptListsExactlyTheTargetsThatAreSet() {
+        profile.setCalorieTarget(2000);
+        profile.setProteinTargetG(90.0);
+
+        String prompt = NutritionCommentator.systemPrompt(summary(List.of()), profile);
+
+        assertTrue(prompt.contains("The user has set only these daily targets: calories 2000 kcal, protein 90 g. "
+                + "Do not mention any target that is not listed."), prompt);
+        assertTrue(prompt.contains("Say which daily targets are met or missed"), prompt);
+        assertFalse(prompt.contains(NO_TARGETS), prompt);
+        assertFalse(prompt.contains("carbs"), prompt);
+        assertFalse(prompt.contains("fat "), prompt);
+    }
+
+    @Test
+    void targetClaimsAreRepairedWhenNoTargetsAreSet() {
+        client.reply(reply("You are meeting your daily calorie target, well done."), reply(GOOD));
+
+        assertEquals(GOOD, commentator.comment(summary(List.of()), profile, null));
+
+        assertEquals("No targets are set; do not mention targets or goals. Describe the figures only.",
+                client.requests.get(1).messages().get(3).content());
+    }
+
+    @Test
+    void targetWordsAreAcceptedWhenTargetsAreSet() {
+        profile.setCalorieTarget(2000);
+        String claim = "You reach 40% of your calorie target, so add a larger lunch.";
+        client.reply(reply(claim));
+
+        assertEquals(claim, commentator.comment(summary(List.of()), profile, null));
+        assertEquals(1, client.requests.size());
+    }
+
+    @Test
+    void targetWordsMatchWholeWordsOnly() {
+        assertInstanceOf(Check.Accepted.class, NutritionCommentator.check(TextNode.valueOf(
+                "This targeted plan suits a goalie with a busy week."), false));
+        assertInstanceOf(Check.Repair.class, NutritionCommentator.check(TextNode.valueOf(
+                "Target reached nicely on most days this week."), false));
+        assertInstanceOf(Check.Repair.class, NutritionCommentator.check(TextNode.valueOf(
+                "These meals support all of your goals."), false));
+        assertInstanceOf(Check.Accepted.class, NutritionCommentator.check(TextNode.valueOf(
+                "These meals support all of your goals."), true));
+    }
+
+    @Test
+    void repeatedTargetClaimsExhaustTheRepairs() {
+        String claim = reply("This plan meets your protein goal every day.");
+        client.reply(claim, claim, claim);
+
+        assertThrows(AgentException.class, () -> commentator.comment(summary(List.of()), profile, null));
+        assertEquals(3, client.requests.size());
     }
 }
