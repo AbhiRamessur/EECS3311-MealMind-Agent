@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="15.1">
+  <zoom_level>9</zoom_level>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>387</x>
+      <y>261</y>
+      <w>234</w>
+      <h>72</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;record&gt;&gt;
+PlanRequest
+--
+days, strategy, slots, budget</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>738</x>
+      <y>279</y>
+      <w>153</w>
+      <h>63</h>
+    </coordinates>
+    <panel_attributes>PlanningStrategies
+--
+_+all()_
+_+byId(String)_</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>504</x>
+      <y>549</y>
+      <w>243</w>
+      <h>117</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;interface&gt;&gt;
+&lt;&lt;Strategy&gt;&gt;
+PlanningStrategy
+--
++id() : String
++displayName() : String
++promptGuidance() : String
++score(Recipe, ScoringContext) : double</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>333</x>
+      <y>711</y>
+      <w>153</w>
+      <h>45</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;ConcreteStrategy&gt;&gt;
+PantryFirstStrategy</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>549</x>
+      <y>711</y>
+      <w>171</w>
+      <h>45</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;ConcreteStrategy&gt;&gt;
+BudgetConsciousStrategy</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>756</x>
+      <y>711</y>
+      <w>153</w>
+      <h>45</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;ConcreteStrategy&gt;&gt;
+HighProteinStrategy</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>531</x>
+      <y>846</y>
+      <w>171</w>
+      <h>45</h>
+    </coordinates>
+    <panel_attributes>PantryCoverage
+--
+_+of(Recipe, Pantry): Result_</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>414</x>
+      <y>747</y>
+      <w>153</w>
+      <h>117</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>150.0;110.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>441</x>
+      <y>657</y>
+      <w>99</w>
+      <h>72</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>90.0;10.0;10.0;60.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>621</x>
+      <y>657</y>
+      <w>27</w>
+      <h>72</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>10.0;10.0;10.0;60.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>729</x>
+      <y>648</y>
+      <w>72</w>
+      <h>81</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>10.0;10.0;60.0;70.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>648</x>
+      <y>153</y>
+      <w>63</w>
+      <h>414</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+score()</panel_attributes>
+    <additional_attributes>10.0;440.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>711</x>
+      <y>333</y>
+      <w>126</w>
+      <h>234</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+  registry</panel_attributes>
+    <additional_attributes>10.0;240.0;120.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>567</x>
+      <y>99</y>
+      <w>234</w>
+      <h>63</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;Context&gt;&gt;
+RulePlanner
+--
++generate(PlanRequest): PlanResult</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>549</x>
+      <y>153</y>
+      <w>45</w>
+      <h>126</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+</panel_attributes>
+    <additional_attributes>10.0;120.0;30.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>567</x>
+      <y>324</y>
+      <w>81</w>
+      <h>243</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+strategy</panel_attributes>
+    <additional_attributes>30.0;250.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>927</x>
+      <y>711</y>
+      <w>153</w>
+      <h>45</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;ConcreteStrategy&gt;&gt;
+LeftoverStrategy</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>738</x>
+      <y>621</y>
+      <w>216</w>
+      <h>108</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>10.0;10.0;220.0;100.0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates>
+      <x>936</x>
+      <y>657</y>
+      <w>243</w>
+      <h>45</h>
+    </coordinates>
+    <panel_attributes>Not registered in PlanningStrategies:
+it needs runtime data (the expiring items)
+bg=YELLOW</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>1197</x>
+      <y>711</y>
+      <w>153</w>
+      <h>45</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;record&gt;&gt;
+ScoringContext</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>675</x>
+      <y>747</y>
+      <w>288</w>
+      <h>117</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>10.0;110.0;300.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>738</x>
+      <y>558</y>
+      <w>576</w>
+      <h>171</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+  </panel_attributes>
+    <additional_attributes>620.0;170.0;560.0;80.0;10.0;10.0</additional_attributes>
+  </element>
+</diagram>

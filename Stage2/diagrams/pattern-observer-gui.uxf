@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="15.1">
+  <zoom_level>8</zoom_level>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>688</x>
+      <y>184</y>
+      <w>120</w>
+      <h>40</h>
+    </coordinates>
+    <panel_attributes>MainController
+--
++close()</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>656</x>
+      <y>288</y>
+      <w>184</w>
+      <h>80</h>
+    </coordinates>
+    <panel_attributes>PlanBindings
+--
++onPlanChange(Runnable)
++onShoppingChange(Runnable)
++repoint()
++close()</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>640</x>
+      <y>488</y>
+      <w>256</w>
+      <h>56</h>
+    </coordinates>
+    <panel_attributes>ObserverBinding
+--
+_+bind(subject, ui, onChange) : ObserverBinding_
++close()</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>376</x>
+      <y>592</y>
+      <w>136</w>
+      <h>40</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;Subject&gt;&gt;
+/ObservableSubject/
+
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>688</x>
+      <y>608</y>
+      <w>120</w>
+      <h>48</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;interface&gt;&gt;
+&lt;&lt;Observer&gt;&gt;
+ModelObserver</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>976</x>
+      <y>592</y>
+      <w>112</w>
+      <h>56</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;interface&gt;&gt;
+UiThread
+--
++run(Runnable)</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>872</x>
+      <y>736</y>
+      <w>96</w>
+      <h>40</h>
+    </coordinates>
+    <panel_attributes>FxUiThread
+--
++run(Runnable)</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>1080</x>
+      <y>752</y>
+      <w>136</w>
+      <h>24</h>
+    </coordinates>
+    <panel_attributes>ImmediateUiThread</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>920</x>
+      <y>312</y>
+      <w>200</w>
+      <h>48</h>
+    </coordinates>
+    <panel_attributes>PantryTab, RecipesTab, PlanTab,
+ShoppingTab, NutritionTab,
+UndoRedoToolBar</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>800</x>
+      <y>208</y>
+      <w>176</w>
+      <h>120</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-</panel_attributes>
+    <additional_attributes>200.0;130.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>872</x>
+      <y>352</y>
+      <w>144</w>
+      <h>152</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+refresh actions</panel_attributes>
+    <additional_attributes>10.0;170.0;80.0;80.0;100.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>744</x>
+      <y>216</y>
+      <w>24</w>
+      <h>88</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>10.0;10.0;10.0;90.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>752</x>
+      <y>360</y>
+      <w>128</w>
+      <h>144</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-
+re-bound to ctx.plan()
+and ctx.generator()
+m2=*</panel_attributes>
+    <additional_attributes>10.0;10.0;10.0;160.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>560</x>
+      <y>208</y>
+      <w>144</w>
+      <h>296</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-
+m2=*</panel_attributes>
+    <additional_attributes>160.0;10.0;20.0;100.0;10.0;180.0;110.0;350.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>888</x>
+      <y>536</y>
+      <w>160</w>
+      <h>72</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-</panel_attributes>
+    <additional_attributes>180.0;70.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>744</x>
+      <y>536</y>
+      <w>160</w>
+      <h>88</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+registers one observer that
+forwards each notification
+to ui.run(onChange)</panel_attributes>
+    <additional_attributes>10.0;90.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>464</x>
+      <y>520</y>
+      <w>192</w>
+      <h>88</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+add Observer / removeObserver</panel_attributes>
+    <additional_attributes>50.0;90.0;50.0;20.0;220.0;20.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>952</x>
+      <y>640</y>
+      <w>120</w>
+      <h>112</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.
+Platform.runLater
+off the FX thread</panel_attributes>
+    <additional_attributes>40.0;10.0;10.0;120.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>1072</x>
+      <y>640</y>
+      <w>56</w>
+      <h>128</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+tests</panel_attributes>
+    <additional_attributes>10.0;10.0;40.0;140.0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>1104</x>
+      <y>464</y>
+      <w>136</w>
+      <h>24</h>
+    </coordinates>
+    <panel_attributes>BackgroundRunner</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>1080</x>
+      <y>352</y>
+      <w>152</w>
+      <h>128</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+AI jobs off the FX thread</panel_attributes>
+    <additional_attributes>40.0;140.0;10.0;10.0</additional_attributes>
+  </element>
+</diagram>

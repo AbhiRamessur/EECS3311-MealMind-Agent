@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="15.1">
+  <zoom_level>9</zoom_level>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>558</x>
+      <y>198</y>
+      <w>90</w>
+      <h>27</h>
+    </coordinates>
+    <panel_attributes>AgentLoop</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>495</x>
+      <y>333</y>
+      <w>234</w>
+      <h>108</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;Context&gt;&gt;
+LlmService
+--
++useClient(LLMClient)
++disable(String)
++isAvailable() : boolean
++complete(LlmRequest) : LlmResponse</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>846</x>
+      <y>369</y>
+      <w>207</w>
+      <h>45</h>
+    </coordinates>
+    <panel_attributes>LlmClientFactory
+--
+_+create(AppConfig): LLMClient_</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>675</x>
+      <y>540</y>
+      <w>252</w>
+      <h>108</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;interface&gt;&gt;
+&lt;&lt;Strategy&gt;&gt;
+LLMClient
+--
++providerName() : String
++modelName() : String
++complete(LlmRequest) : LlmResponse</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>441</x>
+      <y>693</y>
+      <w>171</w>
+      <h>45</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;ConcreteStrategy&gt;&gt;
+OpenAiClient</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>702</x>
+      <y>693</y>
+      <w>171</w>
+      <h>45</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;ConcreteStrategy&gt;&gt;
+OllamaClient</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>990</x>
+      <y>702</y>
+      <w>171</w>
+      <h>63</h>
+    </coordinates>
+    <panel_attributes>&lt;&lt;Decorator&gt;&gt;
+RetryingLlmClient
+--
+-delegate: LLMClient</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>594</x>
+      <y>216</y>
+      <w>81</w>
+      <h>135</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+complete()</panel_attributes>
+    <additional_attributes>10.0;130.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>864</x>
+      <y>405</y>
+      <w>81</w>
+      <h>153</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+builds</panel_attributes>
+    <additional_attributes>10.0;150.0;50.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>675</x>
+      <y>432</y>
+      <w>117</w>
+      <h>126</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-
+m2=0..1
+active strategy</panel_attributes>
+    <additional_attributes>10.0;10.0;40.0;120.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>558</x>
+      <y>612</y>
+      <w>135</w>
+      <h>99</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>130.0;10.0;10.0;90.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>774</x>
+      <y>639</y>
+      <w>27</w>
+      <h>72</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>10.0;10.0;10.0;60.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>918</x>
+      <y>621</y>
+      <w>108</w>
+      <h>99</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>10.0;10.0;100.0;90.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>918</x>
+      <y>594</y>
+      <w>135</w>
+      <h>126</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-
+wraps</panel_attributes>
+    <additional_attributes>130.0;120.0;90.0;30.0;10.0;10.0</additional_attributes>
+  </element>
+</diagram>
