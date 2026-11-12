@@ -1,6 +1,6 @@
 # MealMind Stage 2 - Demo recording script
 
-This script plans the demonstration videos for every implemented feature (F-IDs from the Stage 1 report, N-IDs for new features in `stage2-report.md`, Section 2.2). Together the videos must show **both** the JavaFX GUI and the CLI. Every video starts by naming the feature IDs and names it covers, and every segment below should be introduced the same way. Write each segment's timestamp into the "Timestamp" line and copy the links and timestamps into Section 7 of the report.
+This script plans the demonstration videos for every implemented feature (F-IDs from the Stage 1 report, N-IDs for new features in `stage2-report.md`, Section 2.2). Together the videos must show **both** the JavaFX GUI and the CLI. Every video starts by naming the feature IDs and names it covers, and every segment below should be introduced the same way. The recordings are **eight videos, V1 to V8** (links below); each segment's "Timestamp" line gives where it starts, as plain text "V3 @ 3:22", and Section 7 of the report repeats the links and timestamps.
 
 All commands below were checked against `help` and run on the development machine; expected outputs were copied from real sessions (numbers can differ slightly if the data differ).
 
@@ -33,9 +33,24 @@ All commands below were checked against `help` and run on the development machin
 | V4 | F04, N05, N03, N04 | CLI + GUI | **yes** | 6 min | "Video 4 shows F04 AI recipe generation with the safety gate, N05 saving and removing AI recipes, N03 agent memory, and N04 the agent's tools." |
 | V5 | F05, N06, F11 | CLI + GUI | no | 6 min | "Video 5 shows F05 rule-based weekly plan generation, N06 manual plan building and checks, and F11 the shopping list with export." |
 | V6 | F06, F09, F03 (AI part) | CLI + GUI | **yes** | 6 min | "Video 6 shows F06 natural-language plan editing, F09 nutrition analysis with AI commentary, and the AI re-ranking part of F03." |
-| V7 | F10, F07 | CLI + GUI | F07 **yes**; F10 no (AI re-ranking optional) | 8 min | "Video 7 shows F10 expiring-leftover planning in the CLI and on the Pantry tab, and F07 AI ingredient substitution in the CLI and on the Recipes tab." |
+| V7 | F10, F07 | CLI | F07 **yes**; F10 no (`--ai` optional) | see the video | "Video 7 shows F10 expiring-leftover planning and F07 AI ingredient substitution in the CLI." |
+| V8 | F10, F07 | GUI | F07 **yes**; F10 no (AI re-ranking optional) | see the video | "Video 8 shows F10 expiring-leftover planning on the Pantry tab and F07 AI ingredient substitution on the Recipes tab." |
 
-Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first; record V4, V6 and the F07 part of V7 once the provider is configured.
+Record V1 to V3, V5 and the F10 parts of V7 and V8 offline first; record V4, V6 and the F07 parts of V7 and V8 with the provider configured. All AI segments were recorded with Ollama llama3.
+
+### Video links
+
+| Video | Link (Google Drive, "Anyone with the link" can view) |
+|---|---|
+| V1 | [V1](https://drive.google.com/file/d/1WrPqMlVCI6N-rvI42sCBM7YL5X5mfLP2/view?usp=drive_link) |
+| V2 | [V2](https://drive.google.com/file/d/1vet0Gj_fU2nsUves0OMEFiCDyo4JhxEq/view?usp=drive_link) |
+| V3 | [V3](https://drive.google.com/file/d/1cPS0_xjkevuDOwuuOOpc3X1hbSNesPK8/view?usp=drive_link) |
+| V4 | [V4](https://drive.google.com/file/d/1wjihwLMlI6hYPTo9zjNEM4gFv_4gmCVU/view?usp=drive_link) |
+| V5 | [V5](https://drive.google.com/file/d/1UkWexhrrO7uHwRXsO4fNqd-fsKfySoEJ/view?usp=drive_link) |
+| V6 | [V6](https://drive.google.com/file/d/1BxB-bvwUx4daLkAlgmjz-uCCWZoCaE5o/view?usp=drive_link) |
+| V7 | [V7](https://drive.google.com/file/d/1vhn0A1UamYrvtggfaNarqjJjC_7_mUMM/view?usp=drive_link) |
+| V8 | [V8](https://drive.google.com/file/d/1o0cyJ2548WVAT9vM5_04Qck9pRLzUHK9/view?usp=drive_link) |
+
 
 ---
 
@@ -46,16 +61,16 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **Expected output:** `Added Rice. Pantry now has 500 g.`, then after the restart `Rice  500 g  -`.
 - **AI:** none. Say: "The key is read only from .env or the environment and is never printed; a pre-commit hook blocks key-like text."
 - **Error case:** start with a corrupt pantry file (write `not json` into `pantry.json` in the temp folder): the program prints `Error: ...` naming the file and exits with code 1 without overwriting it.
-- **Timestamp:** ______
+- **Timestamp:** V1 @ 0:12 (CLI)
 
 ## N02 AI provider status and connectivity check (V1)
 
 - **Interface:** CLI, then the GUI toolbar.
 - **Steps:** `llm status`, then `llm ping` (if a provider is configured). In the GUI, point at the AI status label on the right of the toolbar.
-- **Expected output:** `Provider: Ollama`, `Model: llama3`, `Status: available`, `AI calls: 0 ok, 0 failed; tokens: ...` (or `Provider: OpenAI`, model `[FILL: model used]`). Without configuration the welcome line reads `AI features are disabled: ... Deterministic features still work.` and the GUI label reads `AI disabled: <reason>`.
+- **Expected output:** `Provider: Ollama`, `Model: llama3`, `Status: available`, `AI calls: 0 ok, 0 failed; tokens: ...` (all recordings used Ollama llama3; OpenAI was not used). Without configuration the welcome line reads `AI features are disabled: ... Deterministic features still work.` and the GUI label reads `AI disabled: <reason>`.
 - **AI:** only `llm ping` calls the model (one tiny request).
 - **Error case:** with no key and `LLM_PROVIDER=openai`, show the disabled message and that pantry commands still work.
-- **Timestamp:** ______
+- **Timestamp:** V1 @ 2:47 (CLI); V1 @ 5:12-5:20 (GUI)
 
 ## N07 GUI shell, launch options and GUI self-test (V1)
 
@@ -64,7 +79,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **Expected output:** 36 lines starting `ok:` and finally `GUI self-test: ok` (exit code 0).
 - **AI:** none.
 - **Alternative case:** on a machine without a display it prints `GUI self-test skipped: ...` and exits with code 3.
-- **Timestamp:** ______
+- **Timestamp:** V1 @ 4:40 (GUI)
 
 ## F01 Dietary profile management (deterministic part) (V2)
 
@@ -74,7 +89,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** Profile tab: change Diet, add an allergen, type a target, press **Apply**; press **Reset** to reload.
 - **AI:** none (free-text profile parsing from Stage 1 is not implemented; the hint label says so).
 - **Error case:** `profile update --calories 100` prints `Error: Calorie target must be between 800 and 6000 kcal, got 100`; in the GUI the same message appears in red next to the field and nothing is saved.
-- **Timestamp:** ______
+- **Timestamp:** V2 @ 0:12 (CLI); V2 @ 4:10 (GUI)
 
 ## F02 Pantry inventory management (V2)
 
@@ -84,7 +99,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** add an item with the form (unit drop-down, date picker); expired rows are red and rows expiring within 3 days are amber; **Remove Selected**.
 - **AI:** none.
 - **Error case:** `pantry add "Red lentils" 1 l` prints `Error: Cannot convert LITER (VOLUME) to GRAM (MASS): units measure different dimensions`; nothing changes.
-- **Timestamp:** ______
+- **Timestamp:** V2 @ 1:36 (CLI); V2 @ 5:00 (GUI)
 
 ## N01 Undo and redo (V2)
 
@@ -94,7 +109,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** the toolbar buttons read `Undo: Add ... to pantry`; press Undo (or Ctrl+Z) and Redo (Ctrl+Y); the status bar shows the same text as the CLI.
 - **AI:** none.
 - **Alternative case:** `undo` with nothing to undo prints `Nothing to undo.`; explain that profile and rating changes are settings and are not undoable.
-- **Timestamp:** ______
+- **Timestamp:** V2 @ 2:52 (CLI); V2 @ 6:00 (GUI)
 
 ## F08 Recipe and meal scaling (V3)
 
@@ -104,7 +119,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** select R103, type 6 in Servings, press **Scale**, then Undo.
 - **AI:** none.
 - **Error case:** `recipe scale --id R103 --servings 0` prints `Error: Target servings must be at least 1, got 0`.
-- **Timestamp:** ______
+- **Timestamp:** V3 @ 0:11 (CLI); V3 @ 6:34-6:47 (GUI)
 
 ## F12 Ratings, favourites and memory (V3)
 
@@ -114,7 +129,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** Rating choice plus **Rate**, the **Favorite** toggle, the **Favorites only** filter.
 - **AI:** ratings are added to AI prompts as data (taste hints).
 - **Error case:** `recipe rate --id R103 --stars 9` prints `Error: Rating must be between 1 and 5`.
-- **Timestamp:** ______
+- **Timestamp:** V3 @ 1:36 (CLI); V3 @ 5:49-6:33 (GUI)
 
 ## F03 Pantry recipe recommendation (deterministic part in V3, AI part in V6)
 
@@ -124,7 +139,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** tick Pantry first, set Max minutes and Limit, press **Recommend**; click a row to select that recipe.
 - **AI (V6, needs a real model):** `recipe recommend --explain` or tick **Explain with AI**: the list is re-ranked with short AI reasons under "AI-ranked"; say that the AI can only reorder these safe candidates.
 - **Alternative case:** `recipe recommend --max-time 1` prints `Note: No recipe fits 1 minutes; showing the closest matches instead.`; with AI unavailable `--explain` prints `AI explanation unavailable: ...` after the deterministic list.
-- **Timestamp:** ______
+- **Timestamp:** No AI: V3 @ 3:22 (CLI), V3 @ 7:03 (GUI); AI re-ranking: V6 @ 3:28 (CLI), V6 @ 8:42 (GUI)
 
 ## F04 AI recipe generation (V4, needs a real model)
 
@@ -134,7 +149,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** type the request, press **Generate**; watch the Agent activity log; the preview shows a green "Safety check: passed" banner.
 - **AI:** the model writes the recipe and may call read-only tools; code parses it, checks plausibility and safety and retries up to 3 times. Say: "Nothing is saved automatically."
 - **Error case:** with a vegetarian profile ask for `recipe generate "chicken stir fry"`: either the model corrects itself after safety feedback, or the candidate is shown with a red `SAFETY WARNING ...` banner and **Save is disabled**.
-- **Timestamp:** ______
+- **Timestamp:** V4 @ 0:16 (CLI); V4 @ 6:46 (GUI)
 
 ## N05 Saved-recipe management (V4; removal also in V3)
 
@@ -144,7 +159,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** **Save** / **Discard** in the Generate section; **Remove saved recipe** in Details (with a confirmation dialog).
 - **AI:** the save itself is deterministic (re-validated against the current profile).
 - **Error case:** `recipe remove R103` prints `Error: R103 is a bundled sample recipe and cannot be removed`; in the GUI the button is disabled for bundled recipes.
-- **Timestamp:** ______
+- **Timestamp:** V3 @ 4:53 (CLI, removal error); V4 @ 1:41 (CLI, save, undo, redo, remove); V3 @ 6:53 (GUI, greyed-out Remove); V4 @ 7:21 (GUI, save and remove)
 
 ## N03 Agent memory commands (V4)
 
@@ -153,7 +168,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **Expected output:** `Remembered: prefers quick breakfasts`, then `1. prefers quick breakfasts`, `Conversation messages: N` and the rating-derived notes.
 - **AI:** remembered facts are sent with every AI request as preference notes.
 - **Alternative case:** `memory forget "something unknown"` prints `Not found.`
-- **Timestamp:** ______
+- **Timestamp:** V4 @ 4:26 (CLI)
 
 ## N04 Agent tool inspection (V4)
 
@@ -162,7 +177,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **Expected output:** the five tools (`check_safety`, `pantry_query`, `plan_show`, `recipe_search`, `shopping_list`) with their parameters; the call prints the JSON the agent would see.
 - **AI:** none (this shows exactly what the model can read; tools never change data).
 - **Error case:** `tools call recipe_search {"limit": 50}` prints an error naming the allowed range.
-- **Timestamp:** ______
+- **Timestamp:** V4 @ 5:28 (CLI)
 
 ## F05 Weekly meal plan generation (rule-based) (V5)
 
@@ -172,7 +187,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** set Days, Strategy, slots and Budget; press **Generate (rule-based)**; the grid fills with day totals.
 - **AI:** none. Say: "This is the offline generator from Stage 1; AI plan generation is not implemented."
 - **Alternative case:** run `plan generate` again: `Error: the current plan already has meals. Use --replace to overwrite it (this cannot be undone).`; in the GUI a confirmation dialog appears.
-- **Timestamp:** ______
+- **Timestamp:** V5 @ 0:13 (CLI); V5 @ 7:54 (GUI)
 
 ## N06 Manual plan building and plan check (V5)
 
@@ -182,7 +197,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** click a cell, choose a recipe, press **Set meal** or **Clear slot**; Undo restores.
 - **AI:** none.
 - **Error case (allergen/diet refusal):** with the vegetarian profile, `plan set 1 breakfast R101` prints `Refused: Chicken breast is not allowed for a vegetarian diet (contains chicken)` and nothing changes; the GUI shows the same "Refused:" text.
-- **Timestamp:** ______
+- **Timestamp:** V5 @ 2:42 (CLI); V5 @ 8:51 (GUI)
 
 ## F11 Shopping list (V5)
 
@@ -192,7 +207,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** the table updates by itself after a pantry change; tick **Got it** boxes (session only); **Copy as text**; **Export .txt** (dialog suggests `shopping-list.txt`).
 - **AI:** none.
 - **Alternative case:** an ingredient stored in an incompatible unit stays on the list with a note such as `[Pantry stock of Onion is in a unit that cannot be compared (pc); full amount listed]`.
-- **Timestamp:** ______
+- **Timestamp:** V5 @ 4:52 (CLI); V5 @ 11:03 (GUI)
 
 ## F06 Natural-language plan editing (V6, needs a real model)
 
@@ -202,7 +217,7 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** type the request in **Ask the planner**, press **Send**; the grid cell changes; Undo reverts.
 - **AI:** the model only interprets the request; code checks the choice twice and applies it as an undoable command. Day 1 is Monday.
 - **Alternative cases:** `plan edit "change dinner"` gives `Question: Which day ...?` and `Plan unchanged.`; asking for a meat dish with a vegetarian profile ends in `Refused: ...` and `Plan unchanged.`
-- **Timestamp:** ______
+- **Timestamp:** V6 @ 0:17 (CLI); V6 @ 6:58 (GUI)
 
 ## F09 Nutrition analysis and AI commentary (V6; the deterministic part also works offline)
 
@@ -212,9 +227,11 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** day lines, progress bars per target (green under 110%, red from 110%), **Explain with AI** with its activity log.
 - **AI:** the commentary only interprets the computed numbers; it never produces numbers.
 - **Alternative case:** without AI, `--explain` prints the numbers and then `AI explanation unavailable: AI features are disabled: ...`; with an empty plan: `No meals planned; nothing to analyze.`
-- **Timestamp:** ______
+- **Timestamp:** V6 @ 2:41 (CLI); V6 @ 9:16 (GUI)
 
-## F10 Expiring leftover utilization (V7, CLI then GUI; works offline)
+**End of V6.** F07 and F10 are demonstrated in V7 (CLI) and V8 (GUI).
+
+## F10 Expiring leftover utilization (V7 CLI, V8 GUI; works offline)
 
 - **Interface:** CLI, then the GUI Pantry tab's "Use up expiring items" section (an inline section instead of Stage 1's "Clear Expiring Items" modal; say so).
 - **CLI input:** `pantry add "Red lentils" 400 g <tomorrow yyyy-MM-dd>`, `pantry add Spinach 200 g <tomorrow>`, `plan generate --days 3`, `plan leftovers`, `plan show`, `plan leftovers apply`, `plan show`, `undo`.
@@ -223,9 +240,9 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **Error cases:** `plan leftovers --days 0` prints the usage line; with no expiring items `No pantry items expire within 3 days; nothing to do.`; with a full plan `The plan has no empty slots. Use --overwrite ...`, and `plan leftovers --overwrite` marks replacements with `[replaces ...]`; with a vegetarian profile and only chicken expiring: `No safe recipe in your recipe book uses: Chicken breast. Try: recipe generate "a dish using Chicken breast"`.
 - **GUI:** on the Pantry tab add "Red lentils" with tomorrow's expiry date (the hint shows "1 item expires within 3 days"); on the Plan tab generate a 3-day plan; back on the Pantry tab press **Find meals**: the rows show `Day 1 (Monday) BREAKFAST | Red Lentil Soup | Uses Red lentils (expires in 1 day)` under "Proposal (nothing applied yet):" and the Plan grid is unchanged; press **Apply**: the status bar says `Applied: Add 1 leftover meal(s) to the plan. ...`, the Plan grid and the Shopping List update; press **Undo** once and everything reverts; Find meals again and **Discard**. Error cases: Days `0` shows a red field error; after **New plan** on the Plan tab, Apply on an old proposal shows `The plan changed since this proposal was made. Run 'plan leftovers' again.` With AI configured, tick **Re-rank with AI**: the rows are reordered in the background and the Agent activity log fills; without AI the box is disabled with a visible "AI unavailable" label.
 - **Say:** "Matching is by ingredient name only; apply is one undoable step."
-- **Timestamp:** ______
+- **Timestamp:** V7 @ 0:09 (CLI); V8 @ 0:10 (GUI setup), V8 @ 1:13 (GUI demonstration)
 
-## F07 AI ingredient substitution (V7, CLI then GUI; needs a real model)
+## F07 AI ingredient substitution (V7 CLI, V8 GUI; needs a real model)
 
 - **Interface:** CLI, then the GUI Recipes tab's "Substitute an ingredient" section (an ingredient choice and a button instead of Stage 1's right-click "Suggest Substitute..." dialog; say so).
 - **CLI input:** `profile allergy add peanut` (optional), `pantry add "Sunflower seed butter" 200 g`, `recipe show R109`, `recipe substitute --id R109 --ingredient "peanut butter" --reason allergy`, `recipe show R109` (unchanged), `recipe substitute apply 1`, `recipe show R109`, `undo`.
@@ -233,4 +250,4 @@ Total about 40 minutes. Record V1 to V3, V5 and the F10 part of V7 offline first
 - **GUI:** open the **Recipes** tab, click **R109 Peanut Butter Banana Toast** in the table, scroll the Details section down to **Substitute an ingredient**; choose **Peanut butter** in **Ingredient** and **Allergy** in **Reason**; press **Suggest substitutes**: the Agent activity log fills, then the table shows up to three rows (#, Replacement such as `2 tbsp Sunflower seed butter (x1)`, Impact, Pantry `in pantry`, Nutrition `about ... kcal, ... (AI estimates)`) under "Suggestion (nothing applied yet)" and the status bar ends with `Agent: ... model calls ...`; the recipe text above is unchanged. Click the first row, press **Apply selected**: the status bar shows `Substituted: Substituted Peanut butter with ... Per serving: 457 -> ... kcal Warning: Step 2 may still mention Peanut butter; steps are not rewritten Note: R109 is a bundled sample recipe; this change lasts for this session only. Use 'undo' to revert.` and the ingredient list shows the replacement; press **Undo** once and the original returns. Suggest again and press **Discard** to drop it. Error case: add the matching allergen on the Profile tab after suggesting, then Apply selected shows `Refused: ...` and nothing changes; without AI the Suggest button is disabled with a visible "AI unavailable" label.
 - **AI:** the model only suggests names, ratios and nutrition estimates; code validates them, drops unsafe options before they are shown and checks the chosen one again before applying.
 - **Error cases:** `recipe substitute --id R109 --ingredient nothing` lists the recipe's ingredients; `--reason banana` prints `Error: Unknown reason 'banana'. Use: allergy, missing, preference`; changing the profile so the chosen option becomes unsafe makes `apply` print `Error: Refused: ...` and nothing changes; with AI disabled one `Error: AI features are disabled: ...` line.
-- **Timestamp:** ______
+- **Timestamp:** V7 @ 3:25 (CLI); V8 @ 4:20 (GUI)

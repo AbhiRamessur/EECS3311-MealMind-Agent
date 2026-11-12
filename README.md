@@ -6,7 +6,7 @@ MealMind Intelligent Meal Planning and Kitchen Management System for EECS 3311 (
 
 ## Stages
 - **Stage 1 (Design)** - [`stage1/Stage1_Design_Report.md`](Stage1/Stage1_Design_Report.md)
-- **Stage 2 (Implementation)** - report [`Stage2/stage2-report.md`](Stage2/stage2-report.md) (also as [`.docx`](Stage2/stage2-report.docx) and [`.pdf`](Stage2/stage2-report.pdf)); UML diagrams (PlantUML sources and PNGs) in [`Stage2/diagrams/`](Stage2/diagrams/); demo recording script [`Stage2/demo-script.md`](Stage2/demo-script.md); running change log [`Stage2/Stage2_Implementation_Report.md`](Stage2/Stage2_Implementation_Report.md); setup in [Stage 2: Setup and Configuration](#stage-2-setup-and-configuration)
+- **Stage 2 (Implementation)** - report [`Stage2/stage2-report.md`](Stage2/stage2-report.md) (also as [`.docx`](Stage2/stage2-report.docx) and [`.pdf`](Stage2/stage2-report.pdf)); UML diagrams drawn in UMLet (`.uxf` sources and exported PNGs) in [`Stage2/diagrams/`](Stage2/diagrams/); demo recording script [`Stage2/demo-script.md`](Stage2/demo-script.md); running change log [`Stage2/Stage2_Implementation_Report.md`](Stage2/Stage2_Implementation_Report.md); setup in [Stage 2: Setup and Configuration](#stage-2-setup-and-configuration)
 - **Stage 3 (Testing)** -
 
 ## Stage 1 Deliverables
