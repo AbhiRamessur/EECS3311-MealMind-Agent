@@ -390,6 +390,21 @@ Each row consolidates several change-log entries (CR numbers in the last column)
 
 No other AI tools were used. The figures are mixed: the Claude Code token total comes from its `/usage` command and the cost is that command's estimate; the Claude chat usage is not metered per token and falls under the flat Pro subscription. The diagrams were drawn by hand in UMLet.
 
+#### Sample Ollama llama3 usage (one run per feature, not metered)
+
+One sample CLI run per feature, November 9-12, 2026. Counts and times vary from run to run; the times are wall-clock times on the development machine.
+
+| Feature | Prompt tokens | Completion tokens | Model calls | Tool calls | Time |
+|---|---|---|---|---|---|
+| F04 recipe generate | 796 | 521 | 1 | 0 (0 repairs, 0 safety retries) | 21 s |
+| F06 plan edit | 1021 | 48 | 1 | 0 | 10 s |
+| F07 substitution | 842 | 77 | 1 | 0 | 21 s |
+| F03 AI re-ranking | not printed | not printed | not printed | not printed | 4 s |
+| F09 nutrition commentary | not printed | not printed | not printed | not printed | 4 s |
+| F10 leftovers | not printed | not printed | not printed | not printed | 7 s |
+
+Ollama runs locally, so these runs were neither billed nor metered. All six features call the model through the same `AgentLoop`, which counts calls and tokens; F04, F06 and F07 return those counters in their results (`GeneratedRecipe`, `PlanEditResult`, `SubstitutionResult`), so the CLI prints an "Agent: ..." usage line. F03 and F10 (`AgentFacade.rerankRecommendations`) and F09 (`AgentFacade.explainNutrition`) return only the ranking or the commentary text, so their counters are dropped and no usage line is printed.
+
 ### 5.2 Representative interactions
 
 Five prompts from the implementation specifications given to Claude Code, quoted verbatim, each with the layer and the commit it produced.
