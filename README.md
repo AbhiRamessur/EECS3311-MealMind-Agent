@@ -164,9 +164,9 @@ Day 1 Dinner: Red Lentil Soup (4 servings)
 mealmind> plan check
 Plan is safe and within your targets.
 ```
-The safety check is a conservative **keyword heuristic on ingredient names**. It cannot see hidden ingredients (for example dairy inside a sauce) and is not medical advice. Profile changes are settings and are not undoable with `undo`. Describing your diet in free text (for example `profile set --text "..."`) arrives with the AI commands in a later commit.
+The safety check is a conservative **keyword heuristic on ingredient names**. It cannot see hidden ingredients (for example dairy inside a sauce) and is not medical advice. Profile changes are settings and are not undoable with `undo`. Describing your diet in free text (Stage 1's `profile set --text "..."`) is not implemented: the profile is set with the commands above or on the Profile tab.
 
-AI plan generation arrives in a later commit. The JavaFX window is described under [Graphical interface](#graphical-interface).
+There is no AI plan generator: plans come from the rule-based `plan generate`, from `plan set` / `plan clear`, and from single AI-interpreted changes with `plan edit`. The JavaFX window is described under [Graphical interface](#graphical-interface).
 
 #### Tool layer
 The AI agent (added in the next commit) will see the app only through five **read-only** tools. You can call them yourself with `tools list`, `tools schema` and `tools call <name> [json]`, with no AI configured. Everything after the tool name is the JSON arguments, typed as-is.
@@ -233,7 +233,7 @@ If the current plan already has meals, add `--replace`. Generating replaces the 
 Limitations:
 - Recipes have no meal-type tags, so a breakfast slot may get any safe recipe (for example a soup).
 - Pantry use is not simulated across meals: every recipe is scored against the pantry as it is now.
-- The AI planner (free-text requests) comes in a later commit.
+- There is no AI planner: generation is rule-based only. A single change can be requested in plain English with `plan edit` (see "Natural-language plan editing").
 
 #### Nutrition analysis
 `plan nutrition` adds up the current plan: one line per day that has meals, the plan totals, the daily average (over the days that have meals) and, for each calorie or macro target set in your profile, how close the average comes. All numbers are computed by MealMind from the recipes; no AI is involved.
@@ -424,7 +424,7 @@ MealMind works without any AI provider: pantry, recipes, scaling, plans, profile
 | `llm status` | Shows the provider, model, whether AI is available (or why not) and the calls and tokens used this session |
 | `llm ping` | Sends **one tiny real request** ("Reply with the single word OK.", at most 8 tokens) and prints the reply and token counts |
 
-Failed AI calls print a one-line reason, such as "Could not reach Ollama at http://localhost:11434. Is it running?" or "The AI service rejected the API key (HTTP 401)". Transient failures are retried once automatically. The AI recipe, plan and editing commands arrive in later commits.
+Failed AI calls print a one-line reason, such as "Could not reach Ollama at http://localhost:11434. Is it running?" or "The AI service rejected the API key (HTTP 401)". Transient failures are retried once automatically. The AI features (recipe generation, `--explain` re-ranking and commentary, plan editing, `plan leftovers --ai` and `recipe substitute`) are described under "Running the CLI" and "Graphical interface" above.
 
 **Never show `.env` in screenshots, screen recordings or demo videos**, and never paste a key into chat, reports or issues.
 
