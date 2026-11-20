@@ -1,0 +1,19 @@
+# MealMind example script that needs no AI provider.
+# Run: java -jar target/mealmind.jar --input examples/task-no-ai.txt --llm none
+# One CLI command per line; blank lines and lines starting with # are skipped.
+
+profile diet vegetarian
+profile update --calories 2000 --servings 2
+pantry add "Red lentils" 400 g
+pantry add Rice 1 kg
+pantry list
+
+# A rule-based 3-day plan (lunch and dinner), then a manual change that is undone again.
+plan generate --days 3
+plan set 1 breakfast R110
+undo
+plan show
+
+plan nutrition
+shopping list
+recipe recommend --limit 3

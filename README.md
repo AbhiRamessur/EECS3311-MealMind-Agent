@@ -75,8 +75,85 @@ sh scripts/install-hooks.sh
 This sets `core.hooksPath` to `scripts/hooks`. The hook blocks any commit that stages `.env`, `.env.*` (except `.env.example`) or `config.local.json`, or adds something that looks like an API key.
 
 ### Running the application
-* CLI: see [Running the CLI](#running-the-cli) below.
+* Standalone CLI (a runnable jar, interactive or from a script file): see [Run from a terminal (standalone CLI)](#run-from-a-terminal-standalone-cli) below.
+* CLI through Maven: see [Running the CLI](#running-the-cli) below.
 * GUI: see [Graphical interface](#graphical-interface) below.
+
+### Run from a terminal (standalone CLI)
+`mvn package` builds `target/mealmind.jar`, a runnable jar that needs only Java 21 (no Maven, no JavaFX):
+```bash
+mvn -q package -DskipTests
+java -jar target/mealmind.jar --help
+```
+Run a task file (one CLI command per line) and exit:
+```bash
+java -jar target/mealmind.jar --input examples/task-no-ai.txt --llm none
+java -jar target/mealmind.jar --input examples/task.txt --llm ollama
+java -jar target/mealmind.jar -LLMAPI -input examples/task.txt
+```
+Or pipe the commands in (bash: `cat`; Windows Command Prompt: `type`):
+```bash
+cat examples/task-no-ai.txt | java -jar target/mealmind.jar --llm none
+```
+```bat
+type examples\task-no-ai.txt | java -jar target\mealmind.jar --llm none
+```
+Without `--input` and with a terminal, `java -jar target/mealmind.jar` starts the usual interactive command line.
+
+| Option | Meaning | Example |
+|---|---|---|
+| `--input <file>` | Run the commands in `<file>` without prompting, then exit. | `java -jar target/mealmind.jar --input examples/task-no-ai.txt` |
+| `--continue-on-error` | Keep running a script after a failed command (by default it stops at the first one). | `java -jar target/mealmind.jar --input examples/task.txt --continue-on-error` |
+| `--llm <openai\|ollama\|none>` | Choose the AI provider for this run; `none` turns the AI features off and the deterministic ones still work. | `java -jar target/mealmind.jar --llm none --input examples/task-no-ai.txt` |
+| `-LLMAPI [provider]` | Same as `--llm`; without a provider it uses the one configured in `.env` or the environment. | `java -jar target/mealmind.jar -LLMAPI -input examples/task.txt` |
+| `--gui` | Open the window. The jar does not include JavaFX, so start the GUI with `mvn -q javafx:run`. | `mvn -q javafx:run` |
+| `--gui-selftest` | Check the GUI wiring without showing a window (exit 0 ok, 1 failed, 3 skipped). | `mvn -q javafx:run "-Dmealmind.javafxArgs=--gui-selftest"` |
+| `--version` | Print the version. | `java -jar target/mealmind.jar --version` |
+| `--help` | List the options with examples. | `java -jar target/mealmind.jar --help` |
+
+Options also work with one dash (`-input`, `-llm`, `-help`) and in any letter case. With Maven instead of the jar: `mvn -q exec:java "-Dexec.args=--input examples/task-no-ai.txt --llm none"`.
+
+**Task file format.** One CLI command per line, exactly as you would type it (see [Running the CLI](#running-the-cli)). Blank lines and lines starting with `#` are skipped; `exit` ends the script early. Each command is printed after the `mealmind>` prompt before its output, and the run ends with `Done: <n> commands, <m> failed.` Piped standard input is read the same way.
+
+**Exit codes.** `0` every command succeeded; `1` saved data could not be loaded; `2` invalid options or an unreadable input file; `3` GUI self-test skipped; `4` a command failed. A command *fails* when it prints a line starting with `Error:`, `Usage:`, `Unknown command:` or `Refused:` (for example an unknown recipe id, or a meal that breaks your diet). Warnings and "AI explanation unavailable" do not count as failures.
+
+**Choosing the AI provider.** `--llm ollama` uses a local [Ollama](https://ollama.com) server (`ollama pull llama3`, then `ollama serve`; no key needed). `--llm openai` uses OpenAI and needs your key in `.env` or the environment (see [Enter your API key](#2-enter-your-api-key)). `--llm none` runs without AI. Without `--llm`, the provider from `.env` / `LLM_PROVIDER` is used. The key is read **only** from the environment or `.env`; it is never printed, logged or shown in help text, and it never goes on the command line.
+
+**Example.** `examples/task-no-ai.txt` (works offline) sets a vegetarian profile, adds pantry items, generates a 3-day plan, makes a change and undoes it, then shows the plan, nutrition, shopping list and recommendations. `examples/task.txt` does the same with AI: it checks `llm status`, asks for one plan change in plain English (`plan edit`), undoes it and adds AI nutrition commentary. Data goes to `MEALMIND_DATA_DIR` (default `./data`). The start of a real run:
+```text
+$ java -jar target/mealmind.jar --input examples/task-no-ai.txt --llm none
+Welcome to MealMind 0.1.0-SNAPSHOT.
+AI features are disabled: turned off with --llm none. Deterministic features still work.
+Running commands from examples/task-no-ai.txt.
+mealmind> profile diet vegetarian
+Diet set to Vegetarian.
+mealmind> profile update --calories 2000 --servings 2
+Profile updated: calories 2000, servings 2
+mealmind> pantry add "Red lentils" 400 g
+[update] Shopping list updated (0 items)
+Added Red lentils. Pantry now has 400 g.
+...
+mealmind> plan generate --days 3
+Generated 3-day plan using Pantry-First (rule-based, no AI)
+...
+mealmind> recipe recommend --limit 3
+1. R103 Red Lentil Soup - Pantry covers 13% of the recipe; missing: Onion, Carrots, Garlic and 4 more; 40 min
+...
+Done: 12 commands, 0 failed.
+$ echo $?
+0
+```
+With Ollama, the `plan edit` step of `examples/task.txt` printed, for example:
+```text
+mealmind> plan edit "replace day 2 dinner with Red Lentil Soup"
+[agent] Asking the model (call 1)
+[agent] Answer accepted
+[update] Shopping list updated (28 items)
+Edit applied: Replaced Day 2 DINNER with Red Lentil Soup (Replaced Day 2 dinner with Red Lentil Soup)
+Use 'undo' to revert.
+Agent: 1 model calls, 0 tool calls; tokens: 1006 prompt + 55 completion
+```
+AI answers vary from run to run (a model may ask a clarifying question instead); use `--continue-on-error` if a script should not stop when an AI step is refused.
 
 ### Running the CLI
 Start the interactive command line from the project root:

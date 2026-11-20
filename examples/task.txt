@@ -1,0 +1,19 @@
+# MealMind example script with AI (a local Ollama model by default).
+# Run: java -jar target/mealmind.jar --input examples/task.txt --llm ollama
+# One CLI command per line; blank lines and lines starting with # are skipped.
+
+llm status
+profile diet vegetarian
+profile update --calories 2000
+pantry add "Red lentils" 400 g
+pantry add Rice 1 kg
+
+# A rule-based plan, then one change described in plain English (the AI interprets it; code applies it).
+plan generate --days 3
+plan edit "replace day 2 dinner with Red Lentil Soup"
+plan show
+
+# Undo reverts the AI edit, exactly like a manual change.
+undo
+plan nutrition --explain
+shopping list
