@@ -75,6 +75,14 @@ sh scripts/install-hooks.sh
 This sets `core.hooksPath` to `scripts/hooks`. The hook blocks any commit that stages `.env`, `.env.*` (except `.env.example`) or `config.local.json`, or adds something that looks like an API key.
 
 ### Running the application
+Quick start (needs only Java 21 after the build):
+```bash
+mvn -q package -DskipTests
+java -jar target/mealmind.jar --input examples/task-no-ai.txt --llm none
+java -jar target/mealmind.jar
+```
+The first `java -jar` line runs the example task file and exits; the second starts the interactive command line. The GUI starts with `mvn -q javafx:run`.
+
 * Standalone CLI (a runnable jar, interactive or from a script file): see [Run from a terminal (standalone CLI)](#run-from-a-terminal-standalone-cli) below.
 * CLI through Maven: see [Running the CLI](#running-the-cli) below.
 * GUI: see [Graphical interface](#graphical-interface) below.

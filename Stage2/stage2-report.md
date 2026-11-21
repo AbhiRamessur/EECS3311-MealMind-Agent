@@ -10,8 +10,8 @@
 | **Student ID** | 219433564 |
 | **Repository** | https://github.com/AbhiRamessur/EECS3311-MealMind-Agent |
 | **Design baseline** | `Stage1/Stage1_Design_Report.md` |
-| **Running change log** | `Stage2/Stage2_Implementation_Report.md` (CR-01 to CR-216, reproduced in Appendix A) |
-| **Report date** | November 11th, 2026 |
+| **Running change log** | `Stage2/Stage2_Implementation_Report.md` (CR-01 to CR-221, reproduced in Appendix A) |
+| **Report date** | November 21st, 2026 |
 
 ### Contents
 
@@ -22,10 +22,12 @@
 5. AI tools and collaboration log
 6. Development and verification summary
 7. Demonstration index
+8. Feature documentation with screenshots
+9. Standalone command-line program (Commit 24)
 
-Appendix A: complete change log (CR-01 to CR-216)
+Appendix A: complete change log (CR-01 to CR-221)
 
-All statements below were checked against the code at commit `7aeb1ee` (the last GUI commit) and updated for Commits 19 to 23, the README, the CLI help text, `git log` and a fresh `mvn clean test` run. The video links and timestamps, the AI-tool figures and the live-test notes were supplied by the author.
+All statements below were checked against the code at commit `7aeb1ee` (the last GUI commit) and updated for Commits 19 to 24, the README, the CLI help text, `git log` and a fresh `mvn clean test` run. The video links and timestamps, the AI-tool figures and the live-test notes were supplied by the author.
 
 ---
 
@@ -47,7 +49,7 @@ MealMind is a Java 21 desktop application that helps people plan what to eat dur
 
 ### 1.3 Current working functionality
 
-**Command-line interface** (`mvn -q exec:java`; see `help`):
+**Command-line interface** (standalone jar `java -jar target/mealmind.jar`, built by `mvn package`, or `mvn -q exec:java`; interactive at a terminal, or running a task file with `--input` or piped commands as a script; see `help` and Section 9):
 
 - Profile: `profile show`, `profile diet ...`, `profile allergy add|remove ...`, `profile update --calories/--protein/--carbs/--fat/--budget/--servings`.
 - Pantry: `pantry add/list/remove` with unit conversion, merging and expiry warnings.
@@ -300,6 +302,7 @@ Each row consolidates several change-log entries (CR numbers in the last column)
 | Build and packages | Class diagram by subsystem, no build or packages | Maven, Java 21, JUnit 5, Jackson, JavaFX 21; packages `model`, `pantry`, `profile`, `validation`, `command`, `shopping`, `persistence`, `preferences`, `planning`, `nutrition`, `recommend`, `llm`, `tools`, `agent`, `app`, `cli`, `gui`, `gui.logic`, `config` | Reproducible builds; small cohesive packages | One command builds and tests everything | CR-01, CR-47, CR-63, CR-77, CR-87 |
 | One session object | Not specified | `ApplicationContext` holds every model, the history, the validator, the planner, the recommender, the AI service and the agent; `Startup.configureAi` is shared by CLI and GUI | One backend for two front ends | GUI and CLI behave identically | CR-59, CR-151, CR-155 |
 | Secure configuration (new) | Not covered | `.env` (gitignored) + `.env.example` placeholders, `AppConfig`, `DotEnvParser`, provider-dependent default model, key never printed, pre-commit secret scan | Course requirement: no committed secrets | Keys stay local; mistakes are blocked before a commit | CR-02 to CR-10, CR-82, CR-85, CR-96 |
+| Standalone CLI (new) | CLI started from the build tool, interactive only | `target/mealmind.jar` (shade plugin, no JavaFX), `--input` task files and piped scripts with exit codes, `--llm` / `-LLMAPI`, `--help` with examples | Course requirement for a terminal version (Stage 3) | Runs with `java -jar` and no Maven | CR-217 to CR-221 |
 
 ### 4.2 Domain model and persistence
 
@@ -385,10 +388,10 @@ Each row consolidates several change-log entries (CR numbers in the last column)
 
 | Tool or platform | Model name | Features, classes and tasks | Total token cost | Money cost |
 |---|---|---|---|---|
-| Claude Code (Anthropic) | Claude Opus 5.5 (from `/model`) | Implementation of every implementation commit (Commits 1 to 23 in Section 6: Maven skeleton and configuration; domain model; Observer, Command, persistence and CLI; profile and validation; LLM Strategy; tools; agent loop and F04; F12; F05; F03 and F09; F06; GUI shell; Recipes tab; Plan, Shopping List and Nutrition tabs; verified-facts checks for AI text; F10 leftovers; F07 substitution; F10 and F07 in the GUI), their unit and GUI tests, the change-log entries in `Stage2_Implementation_Report.md`, README updates, and this report with its demo script | about 302M tokens in total (from Claude Code's `/usage`) | about $95.10 (estimate from `/usage`) |
+| Claude Code (Anthropic) | Claude Opus 5.5 (from `/model`) | Implementation of every implementation commit (Commits 1 to 24 in Section 6: Maven skeleton and configuration; domain model; Observer, Command, persistence and CLI; profile and validation; LLM Strategy; tools; agent loop and F04; F12; F05; F03 and F09; F06; GUI shell; Recipes tab; Plan, Shopping List and Nutrition tabs; verified-facts checks for AI text; F10 leftovers; F07 substitution; F10 and F07 in the GUI; the standalone CLI jar), their unit and GUI tests, the change-log entries in `Stage2_Implementation_Report.md`, README updates, and this report with its demo script | about 381.9M tokens in total (Claude Code's `/usage`, read on November 21, 2026) | about $132.12 (estimate from `/usage`, November 21, 2026) |
 | Claude chat (Claude app) | Claude Sonnet 5.5 | Planning and design review, and writing the per-commit implementation prompts (specifications) given to Claude Code | not metered; any figure would be an estimate | covered by the Claude Pro subscription (about 28 CAD per month); no per-token charge |
 
-No other AI tools were used. The figures are mixed: the Claude Code token total comes from its `/usage` command and the cost is that command's estimate; the Claude chat usage is not metered per token and falls under the flat Pro subscription. The diagrams were drawn by hand in UMLet.
+No other AI tools were used. The figures are mixed estimates: the Claude Code token total comes from its `/usage` command (read on November 21, 2026; it replaces the earlier reading of about 302M tokens and $95.10 on November 11) and the cost is that command's estimate; the Claude chat usage is not metered per token and falls under the flat Pro subscription. The diagrams were drawn by hand in UMLet.
 
 #### Sample Ollama llama3 usage (one run per feature, not metered)
 
@@ -448,8 +451,10 @@ A commit counts as a **meaningful code commit** when it changes files under `src
 | Oct 20-26, 2026 | 7 | 11 |
 | Oct 27-Nov 2, 2026 | 6 | 6 |
 | Nov 3-9, 2026 | 10 | 11 |
+| Nov 10-16, 2026 | 0 | 4 |
+| Nov 17-23, 2026 | 1 | 2 |
 
-Every period has at least five meaningful code commits. This report and its diagrams were added and later revised in documentation-only commits (5e6b3ce; abec758 on 2026-11-12, which replaced the diagrams with UMLet exports; and the final documentation commit), which are not counted.
+Each of the three implementation periods (Oct 20 to Nov 9) has at least five meaningful code commits. Nov 10-16 had documentation commits only (the report, its diagrams and video links), and Nov 17-23 added Commit 24, the standalone command-line program required for Stage 3, plus documentation. The report and its diagrams were added and revised in documentation-only commits (5e6b3ce and the later ones listed below), which are not counted.
 
 **Oct 20-26, 2026** - 7 meaningful code commits (11 commits in total)
 
@@ -494,10 +499,26 @@ Every period has at least five meaningful code commits. This report and its diag
 | [a7d45f1](https://github.com/AbhiRamessur/EECS3311-MealMind-Agent/commit/a7d45f1478d7d160eccb8c0f95ebd0e346fea204) | 2026-11-09 17:43:51 | Add GUI for F10: use-up-expiring-items section on the Pantry tab | yes |
 | [afc4dab](https://github.com/AbhiRamessur/EECS3311-MealMind-Agent/commit/afc4dabeaf084290dc78ab364353e2f11e9946d5) | 2026-11-09 18:12:26 | Add GUI for F07: substitute-an-ingredient section in the Recipes tab | yes |
 
+**Nov 10-16, 2026** - 0 meaningful code commits (4 commits in total, documentation only)
+
+| Commit | Date and time (Toronto) | Message | Meaningful code commit |
+|---|---|---|---|
+| [abec758](https://github.com/AbhiRamessur/EECS3311-MealMind-Agent/commit/abec7588cf04a7f1168b07945b7d35ae4db884f1) | 2026-11-12 11:59:16 | docs: replace Stage 2 diagrams with UMLet exports | no (not counted) |
+| [dce0f15](https://github.com/AbhiRamessur/EECS3311-MealMind-Agent/commit/dce0f150d0ff5e35c8292c38624c82a6fc1e1467) | 2026-11-12 12:08:58 | docs: fill Stage 2 report, add video timestamps, switch diagrams to UMLet, regenerate docx/pdf | no (not counted) |
+| [c75cf10](https://github.com/AbhiRamessur/EECS3311-MealMind-Agent/commit/c75cf10fac475130e22a01877039ee0532807bd2) | 2026-11-12 12:58:51 | docs: add sample Ollama usage table to the AI log | no (not counted) |
+| [fc1c325](https://github.com/AbhiRamessur/EECS3311-MealMind-Agent/commit/fc1c325180fd17137c9670560eeb3f541a3c3254) | 2026-11-14 17:36:35 | docs: update stale feature statuses and fix weekly table layout | no (not counted) |
+
+**Nov 17-23, 2026** - 1 meaningful code commit (2 commits in total, not counting this documentation commit)
+
+| Commit | Date and time (Toronto) | Message | Meaningful code commit |
+|---|---|---|---|
+| [a6d792d](https://github.com/AbhiRamessur/EECS3311-MealMind-Agent/commit/a6d792d3799b60a98a952ea4733ff09cd25a3da0) | 2026-11-20 17:41:41 | feat(cli): standalone runnable jar with --input, --llm and --help (Commit 24) | yes |
+| [cf670d0](https://github.com/AbhiRamessur/EECS3311-MealMind-Agent/commit/cf670d077188e87b172aa98d7d9271da946486e1) | 2026-11-21 10:41:02 | docs: add feature screenshots | no (not counted) |
+
 
 ### 6.2 Checks performed
 
-**Automated tests.** A fresh `mvn clean test` on 2026-11-09 ran **1028 tests in 140 test classes: 1028 passed, 0 failed, 0 skipped** (about 14 s wall time on the development machine, Windows 11, JDK 21). By area:
+**Automated tests.** A fresh `mvn clean test` on 2026-11-20 ran **1050 tests in 143 test classes: 1050 passed, 0 failed, 0 skipped** (1028 earlier tests unchanged plus 22 for the standalone CLI; about 16 s wall time on the development machine, Windows 11, JDK 21). By area:
 
 | Area (package) | Tests | Test classes |
 |---|---|---|
@@ -513,8 +534,8 @@ Every period has at least five meaningful code commits. This report and its diag
 | planning, nutrition, recommend | 76 | LeftoverStrategy, PantryCoverage, PlanRequest, PlanningStrategies, RulePlanner, NutritionAggregator, NutritionData, NutritionFormatter, RecipeRecommender, RecommendationFormatter, RecommendationRequest |
 | leftovers | 41 | ExpiringItem, LeftoverFlow, LeftoverPlanner, LeftoverRequest |
 | substitution | 27 | IngredientLocator, SubstituteText, SubstitutionApplier, SubstitutionRecords |
-| app, Main | 42 | ApplicationContext, Startup, Main |
-| cli | 129 | CLIConsoleView, CLIHandler, CommandLineTokenizer |
+| app, Main | 51 | ApplicationContext, Startup, Main, MainStandalone |
+| cli | 142 | BatchRunner, CLIConsoleView, CLIHandler, CommandLineTokenizer, LaunchOptions |
 | gui.logic (no display needed) | 99 | 30 presenter test classes (forms, rows, models, ObserverBinding, BackgroundRunner, TextExport, PlanBindings, LeftoverForm, LeftoverRows, LeftoverView, LeftoverSession, SubstituteForm, SubstituteRows, SubstituteSession, SubstituteCliMatch, ...) |
 | gui (needs JavaFX; skipped without a display) | 37 | GuiSmokeTest, GuiRecipesSmokeTest, GuiPlanSmokeTest, GuiLeftoversSmokeTest, GuiSubstituteSmokeTest |
 
@@ -554,7 +575,7 @@ A few package-private members in production GUI classes exist only so that the s
 
 ## 7 Demonstration index
 
-Every video segment names the feature ID and name it shows. All eight videos are on Google Drive, shared as "Anyone with the link" can view. Every feature has a CLI and a GUI entry, except N03, N04 and N08 (CLI only) and N07 (GUI only).
+Every video segment names the feature ID and name it shows. Each video (V1 to V6) demonstrates a feature in the CLI and then in the GUI; F07 and F10 are shown in the CLI in V7 and in the GUI in V8. Section 8 has screenshots of every feature. All eight videos are on Google Drive, shared as "Anyone with the link" can view. Every feature has a CLI and a GUI entry, except N03, N04 and N08 (CLI only) and N07 (GUI only).
 
 | Video | Link (Google Drive, "Anyone with the link" can view) |
 |---|---|
@@ -614,6 +635,396 @@ Timestamps are plain text in the form "V3 @ 3:22" (Google Drive has no deep link
 | N08 Secure configuration and local persistence | CLI | [V1](https://drive.google.com/file/d/1WrPqMlVCI6N-rvI42sCBM7YL5X5mfLP2/view?usp=drive_link) | V1 @ 0:12 |
 
 The recording plan is in `Stage2/demo-script.md`.
+
+---
+
+## 8 Feature documentation with screenshots
+
+For every feature: the original requirement (quoted from the Stage 1 report for F01 to F12; N01 to N08 are new in Stage 2), how it was implemented, screenshots from the demonstration videos (Section 7 has the links), and whether the implementation differs from the requirement. Every reason in it is quoted or summarised from the change log (CR numbers, Appendix A) or from this report; where no reason was recorded, the text says that the part was left out of Stage 2's scope. Each video (V1 to V6) demonstrates a feature in the CLI and then in the GUI; F07 and F10 are shown in the CLI in V7 and in the GUI in V8.
+
+### F01 Dietary profile
+
+**Original requirement.**
+
+*Stage 1 (F01, "Preference & Dietary Profile Management"):*
+
+> Captures and maintains user dietary preferences, allergies, macro targets, calorie limits, budget constraints, and household serving sizes. Users can enter data via form fields or plain text.
+>
+> GUI: *Profile Tab* containing form inputs alongside a natural language text box (*"Describe your diet..."*).
+>
+> CLI: `profile set --text "I am vegetarian and allergic to peanuts"` or `profile update --calories 2200 --budget 150`.
+>
+> AI involvement: The LLM parses free-text descriptions into structured JSON fields. Validation and file persistence are strictly deterministic.
+
+**How it was implemented.** `UserProfile` holds the diet, allergens, daily calorie and macro targets, weekly budget and household servings; every setter validates its value, and `ProfileRepository` saves `profile.json` through an autosave observer. The CLI uses `profile show`, `profile diet`, `profile allergy add|remove` and `profile update --calories/--protein/--carbs/--fat/--budget/--servings` (`ProfileCommands`); the GUI Profile tab (`ProfileTab`, `ProfileForm`) edits the same fields with the CLI's error messages. `ConstraintValidator` reads the profile for every safety check.
+
+![Figure 14: F01 dietary profile in the CLI (video V2 @ 0:12)](screenshots/F01-cli.png.png)
+
+![Figure 15: F01 dietary profile on the Profile tab (video V2 @ 4:10)](screenshots/F01-gui.png.png)
+
+**Does it differ from the requirement?** **Yes.** There is no free-text input: neither `profile set --text "..."` nor the "Describe your diet..." box exists, so the AI never parses the profile. *Recorded reason:* CR-67 split F01 into a deterministic half and an AI half and built the deterministic half first because it "needs no LLM and is what the validator depends on"; the AI half was deferred to the LLM commits (CR-67, CR-75) and then left out of Stage 2's scope (Section 4.9: "Time"). The profile is set with the explicit commands and the Profile tab.
+
+### F02 Pantry inventory
+
+**Original requirement.**
+
+*Stage 1 (F02, "Pantry Inventory Management"):*
+
+> Full CRUD management of kitchen stock, including item names, quantities, units, and expiration dates.
+>
+> GUI: *Pantry Tab* featuring an interactive table, "Add Item" modal dialog, unit dropdowns, and red highlighting for near-expiry items.
+>
+> CLI: `pantry add "Chicken Breast" 500 g 2026-10-10`, `pantry list`, `pantry remove "Milk"`.
+>
+> AI involvement: None (100% Deterministic).
+
+**How it was implemented.** `Pantry` keeps `PantryItem`s keyed by normalized name and merges compatible units with `UnitConverter`; incompatible units are refused. Adding and removing run `AddPantryItemCommand` and `RemovePantryItemCommand` through the shared `CommandHistory` (undoable), and `pantry.json` is saved after every change. The CLI has `pantry add/list/remove` with expiry annotations; the Pantry tab shows a table (expired rows red, items expiring within 3 days amber) and an add form.
+
+![Figure 16: F02 pantry inventory in the CLI (video V2 @ 1:36)](screenshots/F02-cli.png.png)
+
+![Figure 17: F02 pantry inventory on the Pantry tab (video V2 @ 5:00)](screenshots/F02-gui.png.png)
+
+**Does it differ from the requirement?** **Mostly matches.** The Stage 1 "Add Item" modal dialog is an add form inside the Pantry tab (CR-150), and items expiring soon are amber while expired ones are red. No separate reason was recorded for the inline form beyond the GUI's general aim of readable, testable controls (Section 4.7).
+
+### F03 Pantry recipe recommendation
+
+**Original requirement.**
+
+*Stage 1 (F03, "Smart Pantry Recipe Recommendation"):*
+
+> Analyzes current pantry inventory and user dietary rules to rank and recommend matching recipes with natural-language reasoning.
+>
+> GUI: *Recipes Tab* "Recommend from Pantry" button; results render as recipe cards showing pantry coverage percentage and AI explanation badges.
+>
+> CLI: `recipe recommend --pantry-first --max-time 30`.
+>
+> AI involvement: `RecipeSearchTool` deterministically scores inventory overlap and filters candidates; LLM re-ranks candidates and generates concise explanations.
+
+**How it was implemented.** `RecipeRecommender` keeps only recipes with no safety violation, drops 1-2 star recipes while others remain, applies the prep-time limit and ranks by pantry coverage (`PantryCoverage`) and preference bonus. The CLI runs `recipe recommend [--pantry-first] [--max-time n] [--limit n] [--explain]` and the GUI the Recipes tab's Recommendations section. With `--explain` / "Explain with AI", `AgentFacade.rerankRecommendations` asks `RecommendationRanker` to reorder those same candidates and write short reasons; it cannot add a recipe.
+
+![Figure 18: F03 recommendations without AI in the CLI (video V3 @ 3:22)](screenshots/F03-cli.png.png)
+
+![Figure 19: F03 recommendations without AI on the Recipes tab (video V3 @ 7:03)](screenshots/F03-gui.png.png)
+
+![Figure 20: F03 AI re-ranking in the CLI (video V6 @ 3:28)](screenshots/F03-ai-cli.png.png)
+
+![Figure 21: F03 AI re-ranking on the Recipes tab (video V6 @ 8:42)](screenshots/F03-ai-gui.png.png)
+
+**Does it differ from the requirement?** **Yes, in two ways.** (1) F03 has two modes: a deterministic ranking that always works, and the AI re-ranking only on request. *Recorded reason (CR-135):* "Cost control and offline use: every AI call may cost money, and recommendations are useful without it." (2) The GUI lists recommendations in a table rather than recipe cards. *Recorded reason (CR-160):* "A table scales to many recipes and is testable."
+
+### F04 AI recipe generation
+
+**Original requirement.**
+
+*Stage 1 (F04, "AI Recipe Generation"):*
+
+> Synthesizes custom recipes from free-form user prompts while strictly adhering to user dietary safety constraints.
+>
+> GUI: *Recipes Tab* prompt bar (*"Create a high-protein vegan pasta dinner under 20 mins"*) with a preview/save modal.
+>
+> CLI: `recipe generate "high-protein vegan pasta under 20 mins"`.
+>
+> AI involvement: LLM generates recipe details into a strict JSON schema; deterministic code validates ingredients against allergen blacklists.
+
+**How it was implemented.** `AgentFacade.generateRecipe` runs `RecipeGenerator` on the `AgentLoop`: `PromptBuilder` puts the profile, memory facts and rating notes in the system prompt, the model may call the five read-only tools, `RecipeDraftParser` checks the JSON and the plausibility of the nutrition, and `ConstraintValidator` sends safety violations back for up to 3 retries. The result is a pending candidate; `recipe save` (CLI) or Save (GUI) calls `savePendingRecipe`, which re-checks safety against the current profile and runs an undoable `SaveRecipeCommand`. The GUI is the Recipes tab's Generate section with its Agent activity log.
+
+![Figure 22: F04 AI recipe generation in the CLI (video V4 @ 0:16)](screenshots/F04-cli.png.png)
+
+![Figure 23: F04 AI recipe generation on the Recipes tab (video V4 @ 6:46)](screenshots/F04-gui.png.png)
+
+**Does it differ from the requirement?** **Mostly matches.** The preview/save modal is an in-tab preview with Save and Discard. *Recorded reason (CR-160):* "an in-tab preview keeps the pending candidate visible while the user decides." The nutrition and cost of a generated recipe are AI estimates guarded by plausibility checks (Section 1.5).
+
+### F05 Weekly meal plan generation
+
+**Original requirement.**
+
+*Stage 1 (F05, "Weekly Meal Plan Generation"):*
+
+> Generates multi-day meal calendars (1–7 days) balancing dietary rules, budget targets, pantry utilization, and chosen strategy.
+>
+> GUI: *Plan Tab* with duration controls, strategy selector (*Pantry-First*, *Budget*, *High-Protein*), "Generate Plan" button, and an *Agent Activity* live log panel.
+>
+> CLI: `plan generate --days 7 --strategy pantry-first --budget 120`.
+>
+> AI involvement: The LLM selects recipe combinations using tool calls; financial totals, unit scaling, and constraint enforcement are deterministic.
+
+**How it was implemented.** `RulePlanner.generate(PlanRequest)` fills 1 to 7 days from the safe recipes: low-rated recipes are dropped, each slot takes the least-used recipe and then the best score of the chosen `PlanningStrategy` (`PantryFirstStrategy`, `BudgetConsciousStrategy`, `HighProteinStrategy`, looked up through `PlanningStrategies`), and meals are scaled to the household size. The CLI runs `plan generate [--days n] [--strategy id] [--slots ...] [--budget n] [--replace]`; the GUI Plan tab has the same controls and a day-by-slot grid. Single changes afterwards go through F06 or N06.
+
+![Figure 24: F05 rule-based plan generation in the CLI (video V5 @ 0:13)](screenshots/F05-cli.png.png)
+
+![Figure 25: F05 rule-based plan generation on the Plan tab (video V5 @ 7:54)](screenshots/F05-gui.png.png)
+
+**Does it differ from the requirement?** **Yes.** Generation is rule-based only: the LLM does not select the recipe combinations, and the Plan tab has no agent log for generation. *Recorded reasons:* the rule-based generator was Stage 1's fallback and was built first because it "is the part of F05 that must work without a network" (CR-122); the AI planner was deferred (CR-128) and then not implemented, as "Honest scope for the time available" (CR-173). The Strategy design leaves room for it (`promptGuidance()` already exists). The AI is used for single, checked, undoable changes through F06.
+
+### F06 Natural-language plan editing
+
+**Original requirement.**
+
+*Stage 1 (F06, "Natural-Language Plan Editing"):*
+
+> Modifies existing meal plans via plain English instructions with full undo/redo capabilities.
+>
+> GUI: Chat sidebar below calendar grid; interactive *Undo* / *Redo* toolbar buttons.
+>
+> CLI: `plan edit "Swap Tuesday dinner for a 15-minute quick meal"` or `plan undo`.
+>
+> AI involvement: LLM interprets natural language intent into a structured command payload; modifying the plan object and managing history are deterministic.
+
+**How it was implemented.** `AgentFacade.editPlan` lists the plan as labelled data (`PlanEditPrompt`, Day 1 = Monday), lets the model search recipes with the read-only tools and answer with one edit; `PlanEditChecker` rejects unknown ids, bad days or slots and unsafe recipes during the loop, and `PlanEditor` re-checks safety and runs a `ReplaceMealCommand` or `ClearMealCommand` through `CommandHistory`, so `undo` reverts it. Ambiguous requests get a clarifying question and change nothing. The CLI uses `plan edit "..."` and `plan undo|redo`; the GUI uses the Plan tab's "Ask the planner" bar below the grid and the Undo/Redo toolbar.
+
+![Figure 26: F06 natural-language plan editing in the CLI (video V6 @ 0:17)](screenshots/F06-cli.png.png)
+
+![Figure 27: F06 natural-language plan editing on the Plan tab (video V6 @ 6:58)](screenshots/F06-gui.png.png)
+
+**Does it differ from the requirement?** **Mostly matches.** The chat is a bar below the calendar grid. One change is made per request. *Recorded reason (CR-143):* "One validated change per request keeps every edit a single undoable command and the checks simple." Plans have day numbers, not dates, so Day 1 is taken as Monday (Section 1.5). An AI explanation that names a different recipe from the one applied is dropped (CR-183, found in live testing).
+
+### F07 AI ingredient substitution
+
+**Original requirement.**
+
+*Stage 1 (F07, "AI Ingredient Substitution"):*
+
+> Recommends context-aware ingredient replacements based on dietary restrictions, missing pantry items, or personal dislikes.
+>
+> GUI: Right-click context menu on any recipe ingredient → *Suggest Substitute...* dialog.
+>
+> CLI: `recipe substitute --id R101 --ingredient "Peanut Butter" --reason allergy`.
+>
+> AI involvement: LLM analyzes flavor profiles and functionality to suggest substitutes; `PantryTool` cross-references available inventory.
+
+**How it was implemented.** `AgentFacade.suggestSubstitutions` finds the recipe and the ingredient (`IngredientLocator`), runs the `AgentLoop` with `SubstitutionPrompt`, and `SubstitutionChecker` validates every answer (1 to 3 options, same-unit ratios from 0.25 to 4, non-negative numbers, calorie plausibility), sets the "in pantry" flag and drops unsafe options. Nothing changes until an option is applied: `SubstitutionApplier` checks that the recipe is unchanged, re-checks safety and runs an undoable `SubstituteIngredientCommand`. The CLI uses `recipe substitute --id ... --ingredient ... --reason ...`, `apply <n>` and `discard`; the GUI uses the Recipes tab's "Substitute an ingredient" section; the wording is shared through `SubstituteText`.
+
+![Figure 28: F07 ingredient substitution in the CLI (video V7 @ 3:25)](screenshots/F07-cli.png.png)
+
+![Figure 29: F07 ingredient substitution on the Recipes tab (video V8 @ 4:20)](screenshots/F07-gui.png.png)
+
+**Does it differ from the requirement?** **Yes.** (1) The GUI uses an ingredient choice and a "Suggest substitutes" button instead of a right-click menu and dialog. *Recorded reason (CR-210):* "An inline section is testable without context-menu and dialog plumbing and keeps the recipe visible." (2) The replacement's nutrition and cost are AI estimates. *Recorded reason (CR-199):* "There is no nutrition database for arbitrary substitutes." (3) Ratios are in the same unit as the original. *Recorded reason (CR-198):* "Keeps the replacement directly comparable and the pantry check exact." (4) Recipe steps are not rewritten; a warning names every step that still mentions the old ingredient. No reason beyond scope was recorded (CR-200: "Honest scope"), so this part was left out of Stage 2's scope.
+
+### F08 Recipe and meal scaling
+
+**Original requirement.**
+
+*Stage 1 (F08, "Deterministic Recipe & Meal Scaling"):*
+
+> Dynamically rescales ingredient quantities and macronutrient totals based on target serving sizes.
+>
+> GUI: Numerical serving size spinner on recipe detail and meal plan views.
+>
+> CLI: `recipe scale --id R101 --servings 6`.
+>
+> AI involvement: None (100% Deterministic).
+
+**How it was implemented.** `RecipeScaler.scale` multiplies quantities, nutrition and cost exactly by the servings ratio, leaving "to taste" and "pinch" ingredients unchanged; `ScaleRecipeCommand` replaces the recipe in the `RecipeBook` (undoable). `roundForDisplay` rounds only what is shown. The CLI uses `recipe scale --id R101 --servings 6` and `plan set ... --servings n`; the GUI uses the Recipes tab's servings field with Scale and the Plan tab's slot editor.
+
+![Figure 30: F08 recipe scaling in the CLI (video V3 @ 0:11)](screenshots/F08-cli.png.png)
+
+![Figure 31: F08 recipe scaling on the Recipes tab (video V3 @ 6:34-6:47)](screenshots/F08-gui.png.png)
+
+**Does it differ from the requirement?** **Mostly matches.** Stored quantities are exact and only the display is rounded to culinary measures. *Recorded reason (CR-41):* rounding stored values would make "nutrition and cost ... drift away from the true proportions, and repeated scaling ... would build up error." The GUI uses a servings text field with a Scale button rather than a spinner; no separate reason was recorded for that control.
+
+### F09 Nutrition analysis and AI commentary
+
+**Original requirement.**
+
+*Stage 1 (F09, "Multi-Level Nutrition Analysis & AI Commentary"):*
+
+> Aggregates macro and micronutrient totals across meals, days, and weeks, providing plain-language health insights against user targets.
+>
+> GUI: *Nutrition Tab* rendering daily progress bars alongside an "AI Nutrition Assessment" panel.
+>
+> CLI: `plan nutrition` or `plan nutrition --explain`.
+>
+> AI involvement: Calculations are 100% deterministic using local database lookups; LLM only interprets the computed figures to generate commentary.
+
+**How it was implemented.** `NutritionAggregator.aggregate` computes calories, protein, carbs, fat and cost per day, in total and as a daily average from the Composite totals of the plan; `NutritionFormatter` prints them with progress against each target and flags ingredients without nutrition data. The CLI runs `plan nutrition [--explain]`; the GUI Nutrition tab shows the same lines, one progress bar per target and an "AI nutrition assessment" section. With `--explain` / "Explain with AI", `NutritionCommentator` writes commentary on the computed figures; the AI never produces the numbers.
+
+![Figure 32: F09 nutrition analysis in the CLI (video V6 @ 2:41)](screenshots/F09-cli.png.png)
+
+![Figure 33: F09 nutrition analysis on the Nutrition tab (video V6 @ 9:16)](screenshots/F09-gui.png.png)
+
+**Does it differ from the requirement?** **Yes.** (1) Only calories, macronutrients (protein, carbs, fat) and cost are tracked; micronutrients are not. No reason was recorded, so this was left out of Stage 2's scope. (2) There is no nutrition database: figures come from the ingredient values stored with each recipe, and missing data is detected with an all-zero heuristic (CR-130: "an all-zero value is the only signal"). (3) The AI commentary runs only on request. *Recorded reason (CR-135):* "Cost control and offline use."
+
+### F10 Expiring leftover utilization
+
+**Original requirement.**
+
+*Stage 1 (F10, "Expiring Inventory Leftover Utilization"):*
+
+> Identifies near-expiry pantry items and constructs meal plan proposals designed to eliminate food waste.
+>
+> GUI: *Pantry Tab* "Clear Expiring Items" button; previews a proposed meal insertion into open plan slots.
+>
+> CLI: `plan leftovers --days 3`.
+>
+> AI involvement: LLM synthesizes recipes or selects existing database meals prioritizing expiring ingredients; validation is deterministic.
+
+**How it was implemented.** `LeftoverFlow` (shared by the CLI and GUI) finds pantry items expiring within the window (`ExpiringItem`), the eligible plan slots, and the safe recipes that use those items, scored by `LeftoverStrategy`; `LeftoverPlanner.assign` builds the proposal and nothing changes until it is applied. `LeftoverPlanner.apply` re-checks safety and the plan and runs one `MacroCommand` of `ReplaceMealCommand`s, so one `undo` reverts all meals. The CLI uses `plan leftovers [--days n] [--meals n] [--overwrite] [--ai]`, `apply` and `discard`; the GUI uses the Pantry tab's "Use up expiring items" section.
+
+![Figure 34: F10 leftover planning in the CLI (video V7 @ 0:09)](screenshots/F10-cli.png.png)
+
+![Figure 35: F10 leftover planning on the Pantry tab (video V8 @ 1:13; setup from V8 @ 0:10)](screenshots/F10-gui.png.png)
+
+**Does it differ from the requirement?** **Yes.** (1) The proposal is deterministic and the AI may only reorder the safe recipes found; it cannot draft new recipes. *Recorded reason (CR-190):* "Safety and offline use; reuse of a tested AI path." When nothing matches, the message suggests `recipe generate`, so new recipes come only through F04's checked save path (CR-192). (2) The GUI uses an inline section with "Find meals" instead of a "Clear Expiring Items" modal. *Recorded reason (CR-203):* "A modal would hide the plan and the status bar; an inline section is testable without dialogs." (3) Items are matched to ingredients by name only; no reason beyond scope was recorded (CR-193: "Honest scope"), so this was left out of Stage 2's scope.
+
+### F11 Shopping list
+
+**Original requirement.**
+
+*Stage 1 (F11, "Consolidated Shopping List Generation"):*
+
+> Compiles a consolidated shopping list by subtracting current pantry inventory from total recipe requirements in the meal plan.
+>
+> GUI: *Shopping List Tab* auto-updating table with check-off boxes, store section groupings, and text export.
+>
+> CLI: `shopping list`, `shopping export --format txt`.
+>
+> AI involvement: None (100% Deterministic).
+
+**How it was implemented.** `ShoppingListGenerator` observes the current `MealPlan` and the `Pantry` and recomputes the list on every change (`compareAgainstPantry`: required ingredients grouped and converted, pantry stock subtracted, grouped by `Aisle`, with estimated costs). The CLI prints it with `shopping list` and writes it with `shopping export --format txt`; the GUI Shopping List tab refreshes by itself and has "Got it" check-offs, Copy as text and Export .txt.
+
+![Figure 36: F11 shopping list in the CLI (video V5 @ 4:52)](screenshots/F11-cli.png.png)
+
+![Figure 37: F11 shopping list on the Shopping List tab (video V5 @ 11:03)](screenshots/F11-gui.png.png)
+
+**Does it differ from the requirement?** **Mostly matches.** The check-off marks last for the session only. *Recorded reason (CR-178):* "Check-offs are a shopping-trip aid, not data." The list itself is computed from the plan and is not saved (the plan is session-only, Section 1.5); saving it was deferred (CR-54) and left out of Stage 2's scope.
+
+### F12 Ratings, favourites and memory
+
+**Original requirement.**
+
+*Stage 1 (F12, "Recipe Rating, Favorites & Persistent Memory"):*
+
+> Allows users to rate recipes (1–5 stars) and favorite items. Preference history persists locally and influences future AI planning choices.
+>
+> GUI: Interactive star rating bar and heart favorite icon on recipe cards; "Favorites" filter toggle.
+>
+> CLI: `recipe rate --id R101 --stars 5`, `recipe favorite --id R101`.
+>
+> AI involvement: Deterministic storage. Stored ratings are loaded into `AgentMemory` to bias future LLM prompts toward highly rated recipes.
+
+**How it was implemented.** `RecipePreferences` stores validated ratings (1 to 5) and favourites, saves `ratings.json` through `PreferencesRepository` and observes the `RecipeBook` to drop deleted recipes. The CLI uses `recipe rate --id R101 --stars 5`, `recipe favorite` and `recipe unfavorite`; the GUI uses the Recipes tab's rating choice with Rate, the Favorite toggle and the "Favorites only" filter. `PreferenceNotes` turns ratings and favourites into prompt notes for the AI features.
+
+![Figure 38: F12 ratings and favourites in the CLI (video V3 @ 1:36)](screenshots/F12-cli.png.png)
+
+![Figure 39: F12 ratings and favourites on the Recipes tab (video V3 @ 5:49-6:33)](screenshots/F12-gui.png.png)
+
+**Does it differ from the requirement?** **Yes, in the details.** (1) F12 is deterministic and uses the Observer pattern rather than the Facade listed in Stage 1. *Recorded reason (CR-111):* "Ratings are plain user data and need no AI. Keeping them deterministic makes them testable and reliable." (2) Ratings are not copied into `AgentMemory`; notes are derived from `RecipePreferences` for every prompt instead. *Recorded reason (CR-113):* "One source of truth: copying into memory facts would create a second copy that could go out of date." (3) The GUI uses a rating choice and a toggle in the details pane instead of stars and a heart on recipe cards (CR-160, see F03).
+
+### N01 Undo and redo of every state change
+
+**Original requirement.** Stage 1 mentions undo and redo only for F06 (F06: "Modifies existing meal plans via plain English instructions with full undo/redo capabilities"; GUI "interactive *Undo* / *Redo* toolbar buttons"; CLI `plan undo`).
+
+**How it was implemented.** Every pantry, plan and recipe change in both front ends is a `Command` run through the shared `CommandHistory`; `undo` / `redo` (CLI, also `plan undo|redo`) and the Undo/Redo toolbar with Ctrl+Z / Ctrl+Y (GUI, `UndoRedoToolBar`) pop the stacks and show "Undone: <description>".
+
+![Figure 40: N01 undo and redo in the CLI (video V2 @ 2:52)](screenshots/N01-cli.png.png)
+
+![Figure 41: N01 undo and redo in the GUI toolbar (video V2 @ 6:00)](screenshots/N01-gui.png.png)
+
+**Does it differ from the requirement?** It extends Stage 1: undo and redo cover every pantry, plan and recipe change, not only plan edits. Profile, rating and favourite changes are settings and are not undoable (Section 1.5).
+
+### N02 AI provider status and connectivity check
+
+**Original requirement.** No Stage 1 requirement (Section 2.2: "none").
+
+**How it was implemented.** `Startup.configureAi` loads the configuration at startup and either installs the provider or disables AI with a reason. `llm status` prints the provider, model, availability and call/token counters and `llm ping` sends one tiny request (`LlmCommands`, `LlmService`, `UsageTracker`); the GUI shows the AI status label from `AiStatusModel`, never a key.
+
+![Figure 42: N02 AI provider status in the CLI (video V1 @ 2:47)](screenshots/N02-cli.png.png)
+
+![Figure 43: N02 AI status label in the GUI toolbar (video V1 @ 5:12-5:20)](screenshots/N02-gui.png.png)
+
+**Does it differ from the requirement?** New in Stage 2, so there is no Stage 1 requirement to differ from. Available in the CLI and, as the status label, in the GUI.
+
+### N03 Agent memory commands
+
+**Original requirement.** No Stage 1 requirement; Stage 1 mentions `AgentMemory` only as part of F12 (Section 2.2).
+
+**How it was implemented.** `AgentMemory` keeps the conversation and user-curated preference facts for the session. `memory show`, `memory remember "<fact>"`, `memory forget "<fact>"` and `memory clear` (`AgentCommands`) manage the facts, which every AI prompt includes as "User preference notes".
+
+![Figure 44: N03 agent memory commands in the CLI (video V4 @ 4:26)](screenshots/N03-cli.png.png)
+
+**Does it differ from the requirement?** New in Stage 2. CLI only (per the video data, Section 7); the GUI has no memory panel.
+
+### N04 Agent tool inspection
+
+**Original requirement.** No Stage 1 requirement (Section 2.2: "none").
+
+**How it was implemented.** `tools list` and `tools schema` print the five read-only tools and their JSON schemas, and `tools call <name> [json]` runs one tool exactly as the agent would (`ToolCommands`, `ToolManager`), which makes the AI's view of the data visible.
+
+![Figure 45: N04 agent tool inspection in the CLI (video V4 @ 5:28)](screenshots/N04-cli.png.png)
+
+**Does it differ from the requirement?** New in Stage 2, as a demonstration and debugging aid. CLI only (Section 7).
+
+### N05 Saved-recipe management
+
+**Original requirement.** No Stage 1 requirement; Stage 1 F04 mentions a preview/save modal (Section 2.2).
+
+**How it was implemented.** A pending AI recipe is shown with `recipe pending`, kept with `recipe save` (re-validated, undoable `SaveRecipeCommand`, written to `user-recipes.json`) or dropped with `recipe discard`; `recipe remove <id>` deletes a saved recipe through `RemoveRecipeCommand`, and bundled samples are refused. The GUI offers Save, Discard and "Remove saved recipe", which is disabled for bundled recipes.
+
+![Figure 46: N05 removing a bundled recipe is refused in the CLI (video V3 @ 4:53; save, undo, redo and remove at V4 @ 1:41)](screenshots/N05-cli.png.png)
+
+![Figure 47: N05 "Remove saved recipe" greyed out for a bundled recipe in the GUI (video V3 @ 6:53; save and remove at V4 @ 7:21)](screenshots/N05-gui.png.png)
+
+**Does it differ from the requirement?** New in Stage 2, so there is no Stage 1 requirement to differ from.
+
+### N06 Manual plan building and plan check
+
+**Original requirement.** No Stage 1 requirement; Stage 1 only edits plans through natural language (Section 2.2).
+
+**How it was implemented.** `plan new --days n`, `plan set <day> <slot> <recipe> [--servings n]`, `plan clear <day> <slot>`, `plan show` and `plan check` build and check a plan by hand; `plan set` refuses unsafe recipes with "Refused: <violation>". The GUI Plan tab's grid and slot editor (`PlanSlotEditor`) do the same through `ReplaceMealCommand` and `ClearMealCommand`.
+
+![Figure 48: N06 manual plan building in the CLI (video V5 @ 2:42)](screenshots/N06-cli.png.png)
+
+![Figure 49: N06 manual plan building on the Plan tab (video V5 @ 8:51)](screenshots/N06-gui.png.png)
+
+**Does it differ from the requirement?** New in Stage 2, so there is no Stage 1 requirement to differ from.
+
+### N07 JavaFX GUI shell, launch options and GUI self-test
+
+**Original requirement.** No single Stage 1 requirement; Stage 1 describes the GUI per feature (Section 2.2).
+
+**How it was implemented.** `MealMindApp` and `MainController` build the window (toolbar, six tabs, status bar) on the same session as the CLI; the `gui.logic` presenters contain no JavaFX code, views follow the models through `ObserverBinding`, and AI work runs in `BackgroundRunner`. `mvn -q javafx:run` opens it and `--gui-selftest` drives the real controls (36 checks).
+
+![Figure 50: N07 GUI shell and self-test (video V1 @ 4:40)](screenshots/N07-gui.png.png)
+
+**Does it differ from the requirement?** New in Stage 2 as a feature of its own. GUI only (Section 7).
+
+### N08 Secure configuration and local persistence
+
+**Original requirement.** No Stage 1 requirement (Section 2.2: "not covered").
+
+**How it was implemented.** The API key is read only from `.env` or the environment (`AppConfig`, `DotEnvParser`, `.env.example`), never printed (`Redactor` scrubs provider errors), and the pre-commit hook blocks key-like text and local secret files. Pantry, profile, saved recipes and ratings are stored as strict JSON with atomic writes (`JsonFiles`, the four repositories), and a corrupt file stops startup with a clear error.
+
+![Figure 51: N08 secure configuration and local persistence in the CLI (video V1 @ 0:12)](screenshots/N08-cli.png.png)
+
+**Does it differ from the requirement?** New in Stage 2. CLI only (Section 7).
+
+## 9 Standalone command-line program (Commit 24)
+
+**Original requirement** (course requirement for the terminal version, needed for Stage 3): "Provide a version of your agent that users can run directly from a terminal. For example, java -jar Agent.jar -LLMAPI -input task.txt should run the agent on the task specified in task.txt. Document the supported options and provide a working example in your README."
+
+**How it was implemented** (commit a6d792d, CR-217 to CR-221). `mvn package` also builds `target/mealmind.jar`, a runnable jar (maven-shade-plugin, `Main-Class: com.mealmind.Main`) that needs only Java 21: it bundles Jackson but not JavaFX, so the command line never needs JavaFX and the GUI is started with `mvn -q javafx:run`. `LaunchOptions` parses the options and `BatchRunner` runs a task file or piped standard input as a script through the same `CLIHandler` as the interactive session, so every command prints exactly what it prints interactively.
+
+| Option | Meaning |
+|---|---|
+| `--input <file>` | Run the commands in the file (one per line) without prompting, then exit. |
+| `--continue-on-error` | Keep running after a failed command (by default the script stops at the first). |
+| `--llm <openai\|ollama\|none>` | Choose the AI provider for this run; `none` turns the AI features off. |
+| `-LLMAPI [provider]` | Same as `--llm`; without a provider, use the one configured in `.env` or the environment. |
+| `--help`, `--version`, `--gui`, `--gui-selftest` | Help with an example per option; version; the GUI (from Maven); the GUI self-test. |
+
+Options work with one or two dashes and in any letter case, so `java -jar target/mealmind.jar -LLMAPI -input examples/task.txt` works as in the requirement. In a script, each command is printed after `mealmind>` before its output, blank lines and lines starting with `#` are skipped, `exit` ends the script, and the run ends with "Done: <n> commands, <m> failed." Piped standard input (`cat file | java -jar ...`, `type file | java -jar ...`) runs the same way; typing at a terminal stays interactive. **Exit codes:** 0 every command succeeded; 1 saved data could not be loaded; 2 invalid options or an unreadable input file; 3 GUI self-test skipped; 4 a command failed (it printed a line starting with "Error:", "Usage:", "Unknown command:" or "Refused:"). API keys come only from the environment or `.env` and never appear on the command line, in output or in help. The README section "Run from a terminal (standalone CLI)" documents the options with examples; `examples/task-no-ai.txt` (no AI) and `examples/task.txt` (with AI) are working examples, both verified with the jar in a clean clone (the AI one with Ollama llama3).
+
+![Figure 52: standalone CLI: java -jar target/mealmind.jar --help](screenshots/N-standalone-help.png.png)
+
+![Figure 53: standalone CLI: java -jar target/mealmind.jar --input examples/task-no-ai.txt --llm none (start of the run)](screenshots/N-standalone-run-1.png.png)
+
+![Figure 54: standalone CLI: end of the no-AI run ("Done: 12 commands, 0 failed.")](screenshots/N-standalone-run-2.png.png)
+
+![Figure 55: standalone CLI with AI: --input examples/task.txt --llm ollama (start, including the plan edit)](screenshots/N-standalone-ai-1.png.png)
+
+![Figure 56: standalone CLI with AI: end of the run, with the AI nutrition commentary ("Done: 11 commands, 0 failed.")](screenshots/N-standalone-ai-2.png.png)
+
+**Does it differ from the requirement?** **It matches.** The jar is `target/mealmind.jar` rather than `Agent.jar`, `-LLMAPI` and `-input` are accepted as written, the options are documented with examples in `--help` and the README, and the README gives a working example with its real output. The jar runs the command line only; the GUI stays a Maven launch because the jar does not bundle JavaFX (Section 1.3).
 
 ---
 
@@ -1011,3 +1422,15 @@ This section is the consolidated record of every feature, architecture, class an
 | **CR-214** | Presentation layer (new classes, small changes) | — | Toolkit-free and unit-tested in `gui.logic`: `SubstituteForm` (recipe, ingredient and reason fields, all errors collected; `ingredientNames`), `SubstituteRow`/`SubstituteRows` (texts from `SubstituteText`), `SubstituteSession`. JavaFX: `SubstitutePane`; `RecipeDetailsPane` takes the runner, UI thread and shared flag and embeds the pane; the Details section is wrapped in a scroll pane; `RecipesTab.close()` and `MainController.close()` close the new bindings. **Behaviour-preserving fix:** `RecipesTab.refresh` reloads the table with the selection listener paused, so the transient empty selection during a reload no longer re-shows the details twice (it would otherwise drop the pending suggestion on every recipe-book or profile notification); the details shown after a refresh are the same as before. CSS: `.substitute-pending`. | GUI logic testable without a display. | — |
 | **CR-215** | Self-test | Commit 22 self-test (32 checks). | 4 new checks: selecting R101 fills the ingredient choice with its 7 ingredients, Chicken breast first; Suggest substitutes is disabled with the visible "AI unavailable" label and an AI tooltip; the reason choice offers Allergy, Missing and Preference with Preference selected; Apply selected and Discard are disabled while nothing is pending. Proposal flows need a model and are covered by `GuiSubstituteSmokeTest` with a scripted one. | One-command proof of the wiring. | 36 checks, exit codes unchanged (0/1/3). |
 | **CR-216** | Tests and limitations | — | 27 new tests: `SubstituteTextTest` (7), `SubstituteFormTest` (4), `SubstituteRowsTest` (3), `SubstituteSessionTest` (2), `SubstituteCliMatchTest` (1), `GuiSubstituteSmokeTest` (10, skipped without a display); test helper `SubstituteReplies`. No existing test or construction call was changed (no test constructs `RecipesTab` directly). **Limitations:** one ingredient per request; recipe steps are not rewritten; the replacement's nutrition is an AI estimate; bundled-recipe changes last for the session only; a recipe changed after the suggestion is detected at Apply; the suggestion lives in the window session only. | — | 1001 -> 1028 tests, all passing. |
+
+#### Commit 24 — Standalone command-line program (runnable jar, task files, provider choice)
+
+**Pattern changes in this commit:** none. The command line still runs every command through `CLIHandler`, so the Command, Observer, Strategy and Facade uses are unchanged.
+
+| ID | Type | Original design | Implemented change | Reason | Impact |
+|---|---|---|---|---|---|
+| **CR-217** | Feature (new, Stage 3 requirement) | Course requirement for the terminal version: "Provide a version of your agent that users can run directly from a terminal. For example, java -jar Agent.jar -LLMAPI -input task.txt should run the agent on the task specified in task.txt. Document the supported options and provide a working example in your README." Until now the CLI was started with `mvn -q exec:java` and was interactive only. | `mvn package` also builds **`target/mealmind.jar`** with `maven-shade-plugin` (`Main-Class: com.mealmind.Main`). It bundles Jackson but **not JavaFX**, so it runs on any OS with Java 21 and the command line never needs JavaFX; `--gui` from the jar prints how to start the window (`mvn -q javafx:run`, exit 1) and `--gui-selftest` reports "skipped" (exit 3). The normal artifact is unchanged. | A terminal program that runs without Maven, as the requirement asks. | `java -jar target/mealmind.jar ...` works from a plain terminal. |
+| **CR-218** | Options | Stage 1: CLI commands only. | `LaunchOptions` parses `--input <file>`, `--continue-on-error`, `--llm <openai\|ollama\|none>`, `-LLMAPI [provider]` (the value is optional, so `-LLMAPI -input task.txt` uses the configured provider), `--gui`, `--gui-selftest`, `--version` and `--help`, with one or two dashes and in any letter case; repeated, unknown or conflicting options give a clear error and the usage (exit 2). `--llm` overrides `LLM_PROVIDER` for one run through the existing configuration; `none` turns AI off. `--help` lists every option with an example. | Matches the requirement's example and keeps the key out of the command line. | Keys still come only from the environment or `.env`. |
+| **CR-219** | Script mode | — | `BatchRunner` runs a task file (`--input`) or piped standard input: one command per line, blank lines and `#` comments skipped, `exit` ends the script, each command echoed after `mealmind>` before its output, then "Done: <n> commands, <m> failed." A command fails when it prints a line starting with "Error:", "Usage:", "Unknown command:" or "Refused:"; the script stops there unless `--continue-on-error` is given. **Exit codes:** 0 ok, 1 saved data could not be loaded, 2 invalid options or unreadable input file, 3 GUI self-test skipped, 4 a command failed. Piped input is detected only in `main()`, so the testable `Main.run(...)` keeps its interactive behaviour. | A non-interactive run must be readable and must report failure through its exit code. | Interactive use at a terminal is unchanged; piped input to `mvn exec:java` now runs as a script. |
+| **CR-220** | Examples and documentation | — | `examples/task-no-ai.txt` (works offline) and `examples/task.txt` (with AI: `llm status`, `plan edit`, `undo`, `plan nutrition --explain`). The README section "Run from a terminal (standalone CLI)" gives the build and run commands, the options table, the task-file format, the exit codes, how to choose Ollama, OpenAI or no AI, and real output. Both examples were run with the jar in a clean clone (the AI one with Ollama llama3), and `--help`, a piped run (`type` and `cat`) and the error exit codes were checked there too. | The requirement asks for documented options and a working example. | — |
+| **CR-221** | Tests | — | 22 new tests: `LaunchOptionsTest` (6), `BatchRunnerTest` (7), `MainStandaloneTest` (9). No existing test was changed. | — | 1028 -> 1050 tests, all passing. |
